@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v14</h3>
+    <h3>Passagem de Carga | Conferência v15</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -1367,21 +1367,34 @@ async function onScanSuccess(decodedText) {
  // =========================================================================
  // 🩹 BARREIRA DE PRIORIDADE CRÍTICA (FAZ A CHECAGEM ANTES DA VALIDAÇÃO PADRÃO)
  // =========================================================================
+ // =========================================================================
+ // 🩹 BARREIRA DE PRIORIDADE CRÍTICA: BLINDAGEM CONTRA LOOP / DEADLOCK COLO
+ // =========================================================================
  if (proximoCodigoObrigatorioPDC !== null) {
- if (barcodeLimpo !== proximoCodigoObrigatorioPDC) {
- if (typeof tocarBeep === 'function') tocarBeep('erro');
- status.innerText = ` ⚠️ BIP INCORRETO! OBRIGATÓRIO: ${proximoCodigoObrigatorioPDC}`;
- status.style.background = "#fff3cd";
- status.style.color = "#856404";
- 
- const inputUSB = document.getElementById("input-usb");
- if (inputUSB) {
- inputUSB.value = "";
- inputUSB.focus();
+   
+   // 🌟 AJUSTE ABSOLUTO DE ESCAPE: Se a trava atual já foi lida no lote antes, liberta o fluxo
+   if (Array.isArray(codigosLidos) && codigosLidos.includes(proximoCodigoObrigatorioPDC)) {
+     console.log(`%c[PDC ENGINE] Quebra de loop! O código obrigatório "${proximoCodigoObrigatorioPDC}" já foi concluído anteriormente. Resetando trava.`, `color: #198754; font-weight: bold;`);
+     proximoCodigoObrigatorioPDC = null;
+     localStorage.removeItem("pdc_trava_backup");
+   } else if (barcodeLimpo !== proximoCodigoObrigatorioPDC) {
+     
+     // Mantém o bloqueio rígido padrão se o item prioritário realmente estiver pendente
+     if (typeof tocarBeep === 'function') tocarBeep('erro');
+     status.innerText = ` ⚠️ BIP INCORRETO! OBRIGATÓRIO: ${proximoCodigoObrigatorioPDC}`;
+     status.style.background = "#fff3cd";
+     status.style.color = "#856404";
+     
+     const inputUSB = document.getElementById("input-usb");
+     if (inputUSB) {
+       inputUSB.value = "";
+       inputUSB.focus();
+     }
+     return; // BARRADO DE VERDADE (SÓ OCORRE SE O ITEM REALMENTE FALTAR)
+   }
  }
- return; // BARRADO IMEDIATAMENTE. NÃO PROSSEGUE PARA AS PRÓXIMAS VALIDAÇÕES.
- }
- }
+ // =========================================================================
+
  // =========================================================================
 
  // 3. RECUPERAÇÃO DA ÂNCORA: Lê o histórico sincronizado do Sheets
