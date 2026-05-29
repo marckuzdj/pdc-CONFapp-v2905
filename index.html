@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v1</h3>
+    <h3>Passagem de Carga | Conferência v2</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -566,6 +566,8 @@ let validandoAgora = false;
 let pulouComentarioFinal = false; // Nova flag de controle
 let temFaltasMarcadas = false;
 let romaneioSeguroBackup = "";
+// --- NOVA VARIÁVEL DE CONTROLE DE ENCADEAMENTO DE BIPAGEM ---
+let proximoCodigoObrigatorio PDC = null;
 
 window.aparelhoUtilizadoNoLote = sessionStorage.getItem("dispositivoSessao") || (window.innerWidth > 768 ? "via USB" : "via Mobile");
 
@@ -1048,201 +1050,237 @@ function resetBotaoCadastro(btn, textoOriginal) {
 
 // --- 5. LOGICA DE CONFERÊNCIA (SINCRO COM ÂNCORA DE PROGRESSO) ---
 async function atualizarDadosExtras() {
-    const selectRomaneio = document.getElementById("romaneio");
-    const selectedId = selectRomaneio.value;
-    const btnIniciar = document.getElementById("btnIniciar");
-    const statusInfo = document.getElementById("status-info");
-    
-    // Busca os dados do romaneio no array global (carregado no login/abertura)
-    const info = dadosCompletos.find(r => r.Romaneio === selectedId);
+ const selectRomaneio = document.getElementById("romaneio");
+ const selectedId = selectRomaneio.value;
+ const btnIniciar = document.getElementById("btnIniciar");
+ const statusInfo = document.getElementById("status-info");
+ 
+ // Busca os dados do romaneio no array global (carregado no login/abertura)
+ const info = dadosCompletos.find(r => r.Romaneio === selectedId);
+ if (info) {
+ // --- VALIDAÇÃO DE TOKEN DIRETO NO SERVIDOR (EM TEMPO REAL) ---
+ const tokenUsuario = prompt("Por favor, insira o TOKEN de CONFERÊNCIA para este Romaneio:");
+ 
+ if (tokenUsuario === null || tokenUsuario.trim() === "") {
+ alert(" Token não informado! Acesso negado.");
+ selectRomaneio.value = "";
+ if (typeof limparCamposExtras === 'function') limparCamposExtras();
+ return;
+ }
+ 
+ if (statusInfo) {
+ statusInfo.innerText = " Validando token de segurança...";
+ statusInfo.style.background = "#fff3cd";
+ statusInfo.style.display = "block";
+ }
+ 
+ try {
+ const urlCheck = `${urlSheets}?action=validarTokenRomaneio&romaneio=${encodeURIComponent(selectedId)}&token=${encodeURIComponent(tokenUsuario.trim())}`;
+ const resCheck = await fetch(urlCheck);
+ const dataCheck = await resCheck.json();
+ 
+ if (!dataCheck.valido) {
+ // Alerta padrão limpo e sem códigos de debug para o usuário final
+ alert(" Token incorreto! Acesso negado ao Romaneio.");
+ selectRomaneio.value = "";
+ if (typeof limparCamposExtras === 'function') limparCamposExtras();
+ if (statusInfo) statusInfo.style.display = "none";
+ const progressoContainer = document.getElementById("progresso-lote") || document.querySelector(".progress-container");
+ if (progressoContainer) progressoContainer.style.display = "none";
+ return;
+ }
+ // ==========================================================================
+ // NOVA TRAVA DE SEGURANÇA: VALIDAÇÃO DO VALOR DO TOKEN3 COMPATÍVEL
+ // ==========================================================================
+ // Captura de forma flexível o valor enviado pelo servidor independente da caixa da chave
+ const valorToken3 = (dataCheck.token3 !== undefined ? dataCheck.token3 : (dataCheck.TOKEN3 !== undefined ? dataCheck.TOKEN3 : (dataCheck.token3BD !== undefined ? dataCheck.token3BD : ""))).toString().trim();
+ 
+ if (valorToken3 === "0") {
+ alert("Romaneio Retido - Aguarde o token de finalização emitido pelo Operador Logístico");
+ 
+ // Reseta os componentes da tela de forma idêntica ao fluxo de acesso negado
+ selectRomaneio.value = "";
+ if (typeof limparCamposExtras === 'function') limparCamposExtras();
+ if (statusInfo) statusInfo.style.display = "none";
+ const progressoContainer = document.getElementById("progresso-lote") || document.querySelector(".progress-container");
+ if (progressoContainer) progressoContainer.style.display = "none";
+ return; // CORTA COMPLETAMENTE A EXECUÇÃO E ABORTA ATUALIZAÇÕES
+ }
+ // ==========================================================================
+ // --- EXIBIÇÃO DE HISTÓRICO INFORMATIVO (SEM ABORTAR OPERAÇÃO) ---
+ if (dataCheck.retido) {
+ if (typeof exibirModalRetido === 'function') {
+ exibirModalRetido(dataCheck.intercorrencia);
+ } else {
+ // Fallback de segurança sem resetar a interface
+ alert(` Histórico de Intercorrências:\n\n${dataCheck.intercorrencia}`);
+ }
+ // O comando 'return' foi removido para manter a carga de dados ativa
+ }
+ } catch (errorDom) {
+ console.error("Erro na verificação do token:", errorDom);
+ alert(" Erro de comunicação com o servidor ao validar o token. Tente novamente.");
+ selectRomaneio.value = "";
+ if (typeof limparCamposExtras === 'function') limparCamposExtras();
+ if (statusInfo) statusInfo.style.display = "none";
+ return;
+ }
+ // --- MANUTENÇÃO DOS DADOS ORIGINAIS DO FORMULÁRIO ---
+ document.getElementById("campo_operador").value = info.Operador || "";
+ document.getElementById("transp").value = info.Transp || "";
+ const totalPedidos = parseInt(info.TTPedidos) || 0;
+ document.getElementById("total_pedidos").value = totalPedidos;
+ document.getElementById("total_volumes").value = info.TTvols || 0;
+ // --- CORREÇÃO: Força a exibição do container de progresso que o reset escondeu ---
+ const progressoContainer = document.getElementById("progresso-lote") || document.querySelector(".progress-container");
+ if (progressoContainer) {
+ progressoContainer.style.setProperty("display", "block", "important");
+ }
+ // DIRECIONAMENTO DE CURSOR: Força o foco reativo no elemento transp imediatamente após validação do token
+ const fldTransp = document.getElementById("transp");
+ if (fldTransp) fldTransp.focus();
+ if (statusInfo) {
+ statusInfo.innerText = " Sincronizando dados com o servidor...";
+ statusInfo.style.background = "#fff3cd";
+ statusInfo.style.display = "block";
+ }
+ 
+ btnIniciar.disabled = true;
+ btnIniciar.innerText = "Sincronizando...";
+ try {
+ // Busca o que falta no Google Sheets em tempo real
+ const response = await fetch(`${urlSheets}?action=verificarPendencias&romaneio=${encodeURIComponent(selectedId)}`);
+ const result = await response.json();
+ if (result.faltantes) {
+ const qtdFaltantes = result.faltantes.length;
+ 
+ // jaLidosNoSheets = Tudo que já está com "OK" na planilha
+ const jaLidosNoSheets = totalPedidos - qtdFaltantes;
+ // Limpa a lista de bips da sessão atual (memória local)
+ codigosLidos = []; 
+ 
+ // Atualiza o contador visual na tela
+ const contadorEl = document.getElementById("contador");
+ if (contadorEl) {
+ contadorEl.innerText = jaLidosNoSheets;
+ contadorEl.setAttribute("data-base", jaLidosNoSheets);
+ }
+ 
+ // --- ATUALIZAÇÃO CRÍTICA: Força o desenho da barra com os dados do servidor ---
+ if (typeof atualizarBarraProgresso === "function") {
+ atualizarBarraProgresso(jaLidosNoSheets); 
+ }
 
-    if (info) {
-        // --- VALIDAÇÃO DE TOKEN DIRETO NO SERVIDOR (EM TEMPO REAL) ---
-        const tokenUsuario = prompt("Por favor, insira o TOKEN de CONFERÊNCIA para este Romaneio:");
-        
-        if (tokenUsuario === null || tokenUsuario.trim() === "") {
-            alert("❌ Token não informado! Acesso negado.");
-            selectRomaneio.value = "";
-            if (typeof limparCamposExtras === 'function') limparCamposExtras();
-            return;
-        }
-        
-        if (statusInfo) {
-            statusInfo.innerText = "🔑 Validando token de segurança...";
-            statusInfo.style.background = "#fff3cd";
-            statusInfo.style.display = "block";
-        }
-        
-        try {
-            const urlCheck = `${urlSheets}?action=validarTokenRomaneio&romaneio=${encodeURIComponent(selectedId)}&token=${encodeURIComponent(tokenUsuario.trim())}`;
-            const resCheck = await fetch(urlCheck);
-            const dataCheck = await resCheck.json();
-            
-            if (!dataCheck.valido) {
-                // Alerta padrão limpo e sem códigos de debug para o usuário final
-                alert("❌ Token incorreto! Acesso negado ao Romaneio.");
+ // =========================================================================
+ // 🩹 INTERVENÇÃO CIRÚRGICA: ANALISADOR REATIVO DE SESSÃO PARCIAL ANTERIOR
+ // =========================================================================
+ proximoCodigoObrigatorioPDC = null; // Zera trava volátil residual por segurança
 
-                selectRomaneio.value = "";
-                if (typeof limparCamposExtras === 'function') limparCamposExtras();
-                if (statusInfo) statusInfo.style.display = "none";
-                const progressoContainer = document.getElementById("progresso-lote") || document.querySelector(".progress-container");
-                if (progressoContainer) progressoContainer.style.display = "none";
-                return;
-            }
+ if (Array.isArray(dadosCompletos)) {
+   // Filtra os itens do Romaneio ativo vindos da sua estrutura em memória
+   const itensDoRomaneio = dadosCompletos.filter(row => String(row.Romaneio || row.NUMROM).trim() === selectedId.trim());
+   
+   // Cria um Set rápido com os códigos que ainda estão faltantes na planilha
+   const conjuntoFaltantes = new Set(result.faltantes.map(barcode => String(barcode).trim()));
+   
+   // Loop de trás para frente para achar a ÚLTIMA linha que NÃO está na lista de faltantes (Conferência Concluída)
+   let idxUltimoConferido = -1;
+   for (let i = itensDoRomaneio.length - 1; i >= 0; i--) {
+     const codFornec = String(itensDoRomaneio[i].FORNEC_LAST).trim();
+     if (!conjuntoFaltantes.has(codFornec)) {
+       idxUltimoConferido = i;
+       break;
+     }
+   }
 
-            // =========================================================================
-            // 🚨 NOVA TRAVA DE SEGURANÇA: VALIDAÇÃO DO VALOR DO TOKEN3 COMPATÍVEL
-            // =========================================================================
-            // Captura de forma flexível o valor enviado pelo servidor independente da caixa da chave
-            const valorToken3 = (dataCheck.token3 !== undefined ? dataCheck.token3 : (dataCheck.TOKEN3 !== undefined ? dataCheck.TOKEN3 : (dataCheck.token3BD !== undefined ? dataCheck.token3BD : ""))).toString().trim();
-            
-            if (valorToken3 === "0") {
-                alert("Romaneio Retido - Aguarde o token de finalização emitido pelo Operador Logístico");
-                
-                // Reseta os componentes da tela de forma idêntica ao fluxo de acesso negado
-                selectRomaneio.value = "";
-                if (typeof limparCamposExtras === 'function') limparCamposExtras();
-                if (statusInfo) statusInfo.style.display = "none";
-                const progressoContainer = document.getElementById("progresso-lote") || document.querySelector(".progress-container");
-                if (progressoContainer) progressoContainer.style.display = "none";
-                return; // 🛑 CORTA COMPLETAMENTE A EXECUÇÃO E ABORTA ATUALIZAÇÕES
-            }
-            // =========================================================================
+   // Se houver registro de bipe anterior guardado no banco, analisa se gerou trava de encadeamento
+   if (idxUltimoConferido !== -1) {
+     const linhaUltima = itensDoRomaneio[idxUltimoConferido];
+     const volUltimo = parseInt(linhaUltima.VOLUMES) || 0;
 
-            // --- EXIBIÇÃO DE HISTÓRICO INFORMATIVO (SEM ABORTAR OPERAÇÃO) ---
-            if (dataCheck.retido) {
-                if (typeof exibirModalRetido === 'function') {
-                    exibirModalRetido(dataCheck.intercorrencia);
-                } else {
-                    // Fallback de segurança sem resetar a interface
-                    alert(`ℹ️ Histórico de Intercorrências:\n\n${dataCheck.intercorrencia}`);
-                }
-                // O comando 'return' foi removido para manter a carga de dados ativa
-            }
-
-        } catch (errorDom) {
-            console.error("Erro na verificação do token:", errorDom);
-            alert("⚠️ Erro de comunicação com o servidor ao validar o token. Tente novamente.");
-            selectRomaneio.value = "";
-            if (typeof limparCamposExtras === 'function') limparCamposExtras();
-            if (statusInfo) statusInfo.style.display = "none";
-            return;
-        }
-
-        // --- MANUTENÇÃO DOS DADOS ORIGINAIS DO FORMULÁRIO ---
-        document.getElementById("campo_operador").value = info.Operador || "";
-        document.getElementById("transp").value = info.Transp || "";
-        const totalPedidos = parseInt(info.TTPedidos) || 0;
-        document.getElementById("total_pedidos").value = totalPedidos;
-        document.getElementById("total_volumes").value = info.TTvols || 0;
-
-        // --- CORREÇÃO: Força a exibição do container de progresso que o reset escondeu ---
-        const progressoContainer = document.getElementById("progresso-lote") || document.querySelector(".progress-container");
-        if (progressoContainer) {
-            progressoContainer.style.setProperty("display", "block", "important");
-        }
-
-        // 🌟 DIRECIONAMENTO DE CURSOR: Força o foco reativo no elemento transp imediatamente após validação do token
-        const fldTransp = document.getElementById("transp");
-        if (fldTransp) fldTransp.focus();
-
-        if (statusInfo) {
-            statusInfo.innerText = "⏳ Sincronizando dados com o servidor...";
-            statusInfo.style.background = "#fff3cd";
-            statusInfo.style.display = "block";
-        }
-        
-        btnIniciar.disabled = true;
-        btnIniciar.innerText = "Sincronizando...";
-
-        try {
-            // Busca o que falta no Google Sheets em tempo real
-            const response = await fetch(`${urlSheets}?action=verificarPendencias&romaneio=${encodeURIComponent(selectedId)}`);
-            const result = await response.json();
-
-            if (result.faltantes) {
-                const qtdFaltantes = result.faltantes.length;
-                
-                // jaLidosNoSheets = Tudo que já está com "OK" na planilha
-                const jaLidosNoSheets = totalPedidos - qtdFaltantes;
-
-                // Limpa a lista de bips da sessão atual (memória local)
-                codigosLidos = []; 
-
-                // Atualiza o contador visual na tela
-                const contadorEl = document.getElementById("contador");
-                if (contadorEl) {
-                    contadorEl.innerText = jaLidosNoSheets;
-                    contadorEl.setAttribute("data-base", jaLidosNoSheets);
-                }
-                
-                // --- ATUALIZAÇÃO CRÍTICA: Força o desenho da barra com os dados do servidor ---
-                if (typeof atualizarBarraProgresso === "function") {
-                    atualizarBarraProgresso(jaLidosNoSheets); 
-                }
-
-                // =========================================================================
-                // 🚨 ENCAIXE CORRIGIDO: ENVIO DO STATUS DENTRO DO ESCOPO DE VARIÁVEIS REAIS
-                // =========================================================================
-                try {
-                    const percentualCalculado = totalPedidos > 0 ? Math.round((jaLidosNoSheets / totalPedidos) * 100) : 0;
-                    const stringProgressoDinamic = jaLidosNoSheets + " / " + totalPedidos + " Pedidos (" + percentualCalculado + "%)";
-                    
-                    if (selectedId && stringProgressoDinamic !== "") {
-                        const urlGravarStatus = `${urlSheets}?action=gravarStatusProgressoRomaneio&romaneio=${encodeURIComponent(selectedId)}&status_txt=${encodeURIComponent(stringProgressoDinamic)}`;
-                        fetch(urlGravarStatus); 
-                        console.log("Progresso gravado na coluna STATUS com sucesso:", stringProgressoDinamic);
-                    }
-                } catch (errStatus) {
-                    console.error("Erro interno ao processar string de status:", errStatus);
-                }
-                // =========================================================================
-
-                // TRAVA: Se não houver nada pendente, bloqueia o botão de iniciar
-                if (qtdFaltantes === 0) {
-                    alert("✅ A Conferência de Pedidos/Códigos de Barras está 100% CONCLUÍDA neste Romaneio! Clique em 'FINALIZAR LOTE'");
-                    if (statusInfo) {
-                        statusInfo.innerText = "✅ ROMANEIO CONCLUÍDO";
-                        statusInfo.style.background = "#d4edda";
-                    }
-                    btnIniciar.innerText = "CONCLUÍDO";
-                    btnIniciar.disabled = true;
-                    btnIniciar.style.opacity = "0.5";
-                    btnIniciar.style.backgroundColor = "#2b9348"; 
-                    return;
-                }
-            }
-            
-            if (statusInfo) {
-                statusInfo.innerText = "✅ Sincronização concluída!";
-                statusInfo.style.background = "#d4edda";
-            }
-            
-            btnIniciar.disabled = false; 
-            btnIniciar.style.opacity = "1";
-            btnIniciar.innerText = "Iniciar Conferência";
-
-        } catch (e) {
-            console.error("Erro ao sincronizar:", e);
-            alert("⚠️ Erro ao sincronizar dados. Tente selecionar o romaneio novamente.");
-            btnIniciar.disabled = false;
-            btnIniciar.innerText = "Tentar Sincronizar";
-        }
-
-
-
-        
-    } else {
-        // Se desmarcar o romaneio (valor vazio), limpa os campos e esconde o progresso
-        if (typeof limparCamposExtras === 'function') limparCamposExtras();
-        if (statusInfo) statusInfo.style.display = "none";
-        
-        const progressoContainer = document.getElementById("progresso-lote") || document.querySelector(".progress-container");
-        if (progressoContainer) {
-            progressoContainer.style.display = "none";
-        }
-    }
+     // CENÁRIO 1 (Ascendente - Vol Zero): Próximo obrigatório é a linha de cima
+     if (volUltimo === 0) {
+       if (idxUltimoConferido > 0) {
+         const linhaAcima = itensDoRomaneio[idxUltimoConferido - 1];
+         const codAcima = String(linhaAcima.FORNEC_LAST).trim();
+         
+         // SÓ reativa a trava se a linha de cima ainda constar como pendente/faltante
+         if (conjuntoFaltantes.has(codAcima)) {
+           proximoCodigoObrigatorioPDC = codAcima;
+           console.log(`[PDC Restauração] Trava Ascendente Reativada. Aguardando: ${proximoCodigoObrigatorioPDC}`);
+         }
+       }
+     } 
+     // CENÁRIO 2 (Descendente - Próxima de Baixo com Vol Zero): Próximo obrigatório é a linha de baixo
+     else if (idxUltimoConferido < itensDoRomaneio.length - 1) {
+       const linhaAbaixo = itensDoRomaneio[idxUltimoConferido + 1];
+       const volAbaixo = parseInt(linhaAbaixo.VOLUMES) || 0;
+       const codAbaixo = String(linhaAbaixo.FORNEC_LAST).trim();
+       
+       if (volAbaixo === 0 && conjuntoFaltantes.has(codAbaixo)) {
+         proximoCodigoObrigatorioPDC = codAbaixo;
+         console.log(`[PDC Restauração] Trava Descendente Reativada. Aguardando: ${proximoCodigoObrigatorioPDC}`);
+       }
+     }
+   }
+ }
+ // =========================================================================
+ 
+ // =========================================================================
+ // ENCAIXE CORRIGIDO: ENVIO DO STATUS DENTRO DO ESCOPO DE VARIÁVEIS REAIS
+ // =========================================================================
+ try {
+ const percentualCalculado = totalPedidos > 0 ? Math.round((jaLidosNoSheets / totalPedidos) * 100) : 0;
+ const stringProgressoDinamic = jaLidosNoSheets + " / " + totalPedidos + " Pedidos (" + percentualCalculado + "%)";
+ 
+ if (selectedId && stringProgressoDinamic !== "") {
+ const urlGravarStatus = `${urlSheets}?action=gravarStatusProgressoRomaneio&romaneio=${encodeURIComponent(selectedId)}&status_txt=${encodeURIComponent(stringProgressoDinamic)}`;
+ fetch(urlGravarStatus); 
+ console.log("Progresso gravado na coluna STATUS com sucesso:", stringProgressoDinamic);
+ }
+ } catch (errStatus) {
+ console.error("Erro interno ao processar string de status:", errStatus);
+ }
+ // =========================================================================
+ // TRAVA: Se não houver nada pendente, bloqueia o botão de iniciar
+ if (qtdFaltantes === 0) {
+ alert(" A Conferência de Pedidos/Códigos de Barras está 100% CONCLUÍDA neste Romaneio! Clique em 'FINALIZAR LOTE'");
+ if (statusInfo) {
+ statusInfo.innerText = " ROMANEIO CONCLUÍDO";
+ statusInfo.style.background = "#d4edda";
+ }
+ btnIniciar.innerText = "CONCLUÍDO";
+ btnIniciar.disabled = true;
+ btnIniciar.style.opacity = "0.5";
+ btnIniciar.style.backgroundColor = "#2b9348"; 
+ return;
+ }
+ }
+ 
+ if (statusInfo) {
+     statusInfo.innerText = " Sincronização concluída!";
+     statusInfo.style.background = "#d4edda";
 }
+    btnIniciar.disabled = false;
+    btnIniciar.style.opacity = "1";
+    btnIniciar.innerText = "Iniciar Conferência";
+} catch (e) {
+    console.error("Erro ao sincronizar:", e);
+    alert(" Erro ao sincronizar dados. Tente selecionar o romaneio novamente.");
+    btnIniciar.disabled = false;
+    btnIniciar.innerText = "Tentar Sincronizar";
+}
+} else {
+    // Se desmarcar o romaneio (valor vazio), limpa os campos e esconde o progresso
+    if (typeof limparCamposExtras === 'function') limparCamposExtras();
+    if (statusInfo) statusInfo.style.display = "none";
+        const progressoContainer = document.getElementById("progresso-lote") || document.querySelector(".progress-container");
+    if (progressoContainer) {
+        progressoContainer.style.display = "none";
+}
+}
+}
+
 
 
 
