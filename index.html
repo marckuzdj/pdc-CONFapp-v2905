@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v21</h3>
+    <h3>Passagem de Carga | Conferência v22</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -2394,30 +2394,24 @@ if (fluxoAtivo === "Devolver" && checkboxes.length === 0) {
  const sufixoPedidosFormatado = " - [Pedidos Afetados: " + listaCodigos.join(", ") + "]";
  
 // CIRÚRGICO: Aplicação do sufixo de conclusão condicional direto na string final
+// 1. Cria a variável apenas uma vez usando let no topo
 let descricaoFinalComItens = textoDigitadoUsuario + sufixoPedidosFormatado;
 
-// --- SUBSTITUIÇÃO CIRÚRGICA NA PÁGINA 4 ---
-//const sufixoPedidosFormatado = " - [Pedidos Afetados: " + listaCodigos.join(", ") + "]";
-// CIRÚRGICO: Aplicação do sufixo de conclusão condicional direto na string final
-let descricaoFinalComItens = textoDigitadoUsuario + sufixoPedidosFormatado;
-
+// 2. O bloco do modo Informar apenas adiciona o sufixo se a condição for verdadeira
 if (fluxoAtivo === "Informar") {
- // =========================================================================
- // 🩹 INTERVENÇÃO CIRÚRGICA: FORMATAÇÃO DO CARIMBO DE SUCESSO EM MODO INFORMAR
- // =========================================================================
  const agora = new Date();
  const dia = String(agora.getDate()).padStart(2, '0');
- const mes = String(agora.getMonth() + 1).padStart(2, '0'); // Mês inicia em 0
+ const mes = String(agora.getMonth() + 1).padStart(2, '0'); 
  const ano = agora.getFullYear();
  const hora = String(agora.getHours()).padStart(2, '0');
  const minuto = String(agora.getMinutes()).padStart(2, '0');
  
  const dataFormatada = `${dia}-${mes}-${ano} ${hora}:${minuto}`;
  
- // Concatenação reta e limpa do sufixo com espaço simples
+ // Aqui usamos apenas += para complementar o texto, sem redefinir com 'let'
  descricaoFinalComItens += ` [${dataFormatada}] Volumes confirmados / CONCLUÍDO`;
- // =========================================================================
 }
+
 
 // Captura direta do romaneio ativo na tela (Mantido original da página 4)
 let romaneioId = "";
