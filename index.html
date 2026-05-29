@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v7</h3>
+    <h3>Passagem de Carga | Conferência v8</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -1349,6 +1349,7 @@ async function atualizarStatusTempoReal() {
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
+// --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
 async function onScanSuccess(decodedText) {
  if (validandoAgora) return;
  
@@ -1364,7 +1365,7 @@ async function onScanSuccess(decodedText) {
  const status = document.getElementById("status-info");
  
  // =========================================================================
- // 🩹 BARREIRA DE VALIDAÇÃO CRÍTICA: TRAVA ATIVA DAS CONDIÇÕES 1 E 2
+ // 🩹 BARREIRA DE PRIORIDADE CRÍTICA (FAZ A CHECAGEM ANTES DA VALIDAÇÃO PADRÃO)
  // =========================================================================
  if (proximoCodigoObrigatorioPDC !== null) {
  if (barcodeLimpo !== proximoCodigoObrigatorioPDC) {
@@ -1378,7 +1379,7 @@ async function onScanSuccess(decodedText) {
  inputUSB.value = "";
  inputUSB.focus();
  }
- return; // Bloqueia o processamento imediatamente
+ return; // BARRADO IMEDIATAMENTE. NÃO PROSSEGUE PARA AS PRÓXIMAS VALIDAÇÕES.
  }
  }
  // =========================================================================
@@ -1387,7 +1388,7 @@ async function onScanSuccess(decodedText) {
  const contadorEl = document.getElementById("contador");
  const jaLidosNoSheets = parseInt(contadorEl.getAttribute("data-base")) || 0;
  
- // Validação local rápida
+ // Validação local rápida de duplicidade na sessão
  if (codigosLidos.includes(barcodeLimpo)) {
  if (typeof tocarBeep === 'function') tocarBeep('erro');
  status.innerText = " JÁ LIDO AGORA: " + barcodeLimpo;
@@ -1397,7 +1398,7 @@ async function onScanSuccess(decodedText) {
  }
  validandoAgora = true;
 
- // 🌟 ATUALIZAÇÃO DE CORES
+ // 🌟 ATUALIZAÇÃO DE CORES: ALTO CONTRASTE NA VALIDAÇÃO
  status.innerText = " Validando: " + barcodeLimpo + "...";
  status.style.background = "#dc3545"; 
  status.style.color = "#ffffff";     
@@ -1440,49 +1441,15 @@ async function onScanSuccess(decodedText) {
  status.style.color = "#155724"; 
 
  // =========================================================================
- // 🩹 APLICAÇÃO CIRÚRGICA DAS SUAS 3 CONDIÇÕES DIRETAS
+ // 🩹 ACIONAMENTO REATIVO DA FUNÇÃO DE PRIORIDADE ISOLADA
  // =========================================================================
- // Se o bip atual limpou a trava existente, reseta o estado
- if (proximoCodigoObrigatorioPDC !== null && barcodeLimpo === proximoCodigoObrigatorioPDC) {
- proximoCodigoObrigatorioPDC = null;
- localStorage.removeItem("pdc_trava_backup");
- }
-
- if (Array.isArray(dadosCompletos)) {
- // Encontra a linha atual baseada estritamente no valor de FORNEC_LAST lido
- const idx = dadosCompletos.findIndex(row => String(row.FORNEC_LAST || row.fornec_last || "").trim() === barcodeLimpo);
-
- if (idx !== -1) {
- // Mapeamento dinâmico das chaves para evitar quebras por maiúsculas/minúsculas
- const getVol = (row) => parseInt(row.VOLUMES !== undefined ? row.VOLUMES : (row.Volumes !== undefined ? row.Volumes : (row.volumes !== undefined ? row.volumes : 0))) || 0;
- const getFornec = (row) => String(row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "")).trim();
-
- const volAtual = getVol(dadosCompletos[idx]);
- const temLinhaAbaixo = idx < dadosCompletos.length - 1;
- const temLinhaAcima = idx > 0;
-
- const volAbaixo = temLinhaAbaixo ? getVol(dadosCompletos[idx + 1]) : -1;
- const volAcima = temLinhaAcima ? getVol(dadosCompletos[idx - 1]) : -1;
-
- // CONDITION 1: Se col VOLUMES > 0 e a linha de baixo = 0 -> próximo DEVE ser o de baixo
- if (volAtual > 0 && temLinhaAbaixo && volAbaixo === 0) {
- proximoCodigoObrigatorioPDC = getFornec(dadosCompletos[idx + 1]);
+ // Chama a nova função isolada para definir se este bip de sucesso gerou alguma prioridade obrigatória
+ proximoCodigoObrigatorioPDC = calcularProximoCodigoPrioritario(barcodeLimpo);
+ 
+ if (proximoCodigoObrigatorioPDC !== null) {
  localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
- console.log(`[CONDIÇÃO 1] Ativada. Próximo obrigatório: ${proximoCodigoObrigatorioPDC}`);
- } 
- // CONDITION 2: Se col VOLUMES = 0 e a linha de cima > 0 -> próximo DEVE ser o de cima
- else if (volAtual === 0 && temLinhaAcima && volAcima > 0) {
- proximoCodigoObrigatorioPDC = getFornec(dadosCompletos[idx - 1]);
- localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
- console.log(`[CONDIÇÃO 2] Ativada. Próximo obrigatório: ${proximoCodigoObrigatorioPDC}`);
- } 
- // CONDITION 3: Se col VOLUMES > 0 e a linha de baixo > 0 (ou qualquer outra combinação) -> Ordem aleatória
- else {
- proximoCodigoObrigatorioPDC = null;
+ } else {
  localStorage.removeItem("pdc_trava_backup");
- console.log(`[CONDIÇÃO 3] Modo aleatório mantido.`);
- }
- }
  }
  // =========================================================================
  
@@ -1506,6 +1473,7 @@ async function onScanSuccess(decodedText) {
  setTimeout(() => { validandoAgora = false; }, 800);
  }
 }
+
 
 
 
@@ -3248,6 +3216,49 @@ function selecionarTipoOcorrencia(tipo) {
         }
     }
     // =========================================================================
+}
+
+    // =========================================================================
+// 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE CROSS-DOCKING (3 CONDIÇÕES CRISTALINAS)
+// =========================================================================
+function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
+  if (!Array.isArray(dadosCompletos)) return null;
+
+  // 1. Encontra a linha atual baseando-se estritamente no valor lido
+  const idx = dadosCompletos.findIndex(row => 
+    String(row.FORNEC_LAST || row.fornec_last || "").trim() === barcodeUltimoValidado
+  );
+
+  if (idx === -1) return null;
+
+  // 2. Helpers para capturar dados tratando chaves maiúsculas/minúsculas de forma reativa
+  const getVol = (row) => parseInt(row.VOLUMES !== undefined ? row.VOLUMES : (row.Volumes !== undefined ? row.Volumes : (row.volumes !== undefined ? row.volumes : 0))) || 0;
+  const getFornec = (row) => String(row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "")).trim();
+
+  const volAtual = getVol(dadosCompletos[idx]);
+  const temLinhaAbaixo = idx < dadosCompletos.length - 1;
+  const temLinhaAcima = idx > 0;
+
+  const volAbaixo = temLinhaAbaixo ? getVol(dadosCompletos[idx + 1]) : -1;
+  const volAcima = temLinhaAcima ? getVol(dadosCompletos[idx - 1]) : -1;
+
+  // CONDITION 1: Se VOLUMES atual > 0 e a linha de baixo = 0 -> Próximo DEVE ser o de baixo
+  if (volAtual > 0 && temLinhaAbaixo && volAbaixo === 0) {
+    const codAbaixo = getFornec(dadosCompletos[idx + 1]);
+    console.log(`[CONDIÇÃO 1] Ativada. Próximo obrigatório (Abaixo): ${codAbaixo}`);
+    return codAbaixo;
+  } 
+  
+  // CONDITION 2: Se VOLUMES atual = 0 e a linha de cima > 0 -> Próximo DEVE ser o de cima
+  if (volAtual === 0 && temLinhaAcima && volAcima > 0) {
+    const codAcima = getFornec(dadosCompletos[idx - 1]);
+    console.log(`[CONDIÇÃO 2] Ativada. Próximo obrigatório (Acima): ${codAcima}`);
+    return codAcima;
+  } 
+
+  // CONDITION 3: Se col VOLUMES > 0 e a linha de baixo > 0 (Ou qualquer outro cenário) -> Ordem aleatória
+  console.log(`[CONDIÇÃO 3] Ordem aleatória liberada.`);
+  return null;
 }
 
 
