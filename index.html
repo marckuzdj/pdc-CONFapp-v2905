@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v5</h3>
+    <h3>Passagem de Carga | Conferência v6</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -1347,6 +1347,7 @@ async function atualizarStatusTempoReal() {
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO COM AUDITORIA DO SERVIDOR) ---
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
+// --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
 async function onScanSuccess(decodedText) {
  if (validandoAgora) return;
  
@@ -1354,16 +1355,15 @@ async function onScanSuccess(decodedText) {
  const usbContainer = document.getElementById("container-leitor-usb");
  const isUsb = usbContainer && usbContainer.style.display !== "none" && !usbContainer.classList.contains('hidden');
  window.aparelhoUtilizadoNoLote = isUsb ? "via USB" : "via Mobile";
-
  
- // 2. DECLARAÇÃO ÚNICA DO CÓDIGO DE BARRAS (CORRIGIDO)
+ // 2. DECLARAÇÃO ÚNICA DO CÓDIGO DE BARRAS
  const barcodeLimpo = decodedText.trim();
  const romaneioVal = document.getElementById("romaneio").value;
  const usuario = document.getElementById("usuario").value;
  const status = document.getElementById("status-info");
  
  // =========================================================================
- // 🩹 INTERVENÇÃO CIRÚRGICA: BARREIRA DE VALIDAÇÃO CROSS-DOCKING (TRAVA ATIVA)
+ // 🩹 BARREIRA DE VALIDAÇÃO CRÍTICA: TRATAMENTO DA TRAVA ATIVA (IMEDIATO)
  // =========================================================================
  if (proximoCodigoObrigatorioPDC !== null) {
  if (barcodeLimpo !== proximoCodigoObrigatorioPDC) {
@@ -1372,17 +1372,13 @@ async function onScanSuccess(decodedText) {
  status.style.background = "#fff3cd";
  status.style.color = "#856404";
  
- // Limpeza e foco rápidos no leitor USB se aplicável
  const inputUSB = document.getElementById("input-usb");
  if (inputUSB) {
  inputUSB.value = "";
  inputUSB.focus();
  }
- return; // Aborta e bloqueia o processamento
+ return; // BARRADO IMEDIATAMENTE (CORTA A EXECUÇÃO AQUI)
  }
- // Se o bip bateu com o esperado, limpa a trava volátil e o backup do navegador
- proximoCodigoObrigatorioPDC = null;
- localStorage.removeItem("pdc_trava_backup"); 
  }
  // =========================================================================
 
@@ -1395,18 +1391,15 @@ async function onScanSuccess(decodedText) {
  if (typeof tocarBeep === 'function') tocarBeep('erro');
  status.innerText = " JÁ LIDO AGORA: " + barcodeLimpo;
  status.style.background = "#fff3cd";
- status.style.color = "#856404"; // Garante legibilidade no amarelo padrão
+ status.style.color = "#856404"; 
  return;
  }
  validandoAgora = true;
 
- // =========================================================================
  // 🌟 ATUALIZAÇÃO DE CORES: ALTO CONTRASTE (VERMELHO/BRANCO) NA VALIDAÇÃO
- // =========================================================================
  status.innerText = " Validando: " + barcodeLimpo + "...";
- status.style.background = "#dc3545"; // Fundo Vermelho
- status.style.color = "#ffffff";     // Texto Branco
- // =========================================================================
+ status.style.background = "#dc3545"; 
+ status.style.color = "#ffffff";     
 
  try {
  const params = new URLSearchParams({
@@ -1415,7 +1408,7 @@ async function onScanSuccess(decodedText) {
  romaneio: romaneioVal,
  conferente: usuario,
  confirmado: "OK",
- data_conferencia: new Date().toLocaleString("pt-BR") // Parâmetro simplificado e limpo
+ data_conferencia: new Date().toLocaleString("pt-BR") 
  });
  
  const response = await fetch(`${urlSheets}?${params.toString()}`);
@@ -1429,13 +1422,11 @@ async function onScanSuccess(decodedText) {
  const totalAcumulado = jaLidosNoSheets + codigosLidos.length;
  const totalPedidosGeral = parseInt(document.getElementById("total_pedidos").value) || 0;
  
- // Aktualiza Contador e Barra de Progresso com o Total Real na Tela
  contadorEl.innerText = totalAcumulado;
  if (typeof atualizarBarraProgresso === "function") {
  atualizarBarraProgresso(totalAcumulado);
  }
 
- // Atualiza a lista visual com o número do item na carga
  const lista = document.getElementById("itens-lidos");
  lista.innerHTML = `
  <div class="item-codigo">
@@ -1443,32 +1434,37 @@ async function onScanSuccess(decodedText) {
  <span>${barcodeLimpo}</span> <span style="color:var(--success)">✓</span>
  </div>` + lista.innerHTML;
  
- // 🌟 RESTAURAÇÃO: Retorna ao Verde-Claro nativo original se for validado
  status.innerText = " VALIDADO E ATUALIZADO";
  status.style.background = "#d4edda";
- status.style.color = "#155724"; // Cor de texto nativa do alerta de sucesso
+ status.style.color = "#155724"; 
 
  // =========================================================================
- // 🩹 INTERVENÇÃO CIRÚRGICA: CÁLCULO E PERSISTÊNCIA DA PRÓXIMA TRAVA (CORRIGIDO)
+ // 🩹 ENGENHARIA REVERSA DE FLUXO: SÓ CALCULA/LIMPA A TRAVA APÓS SUCESSO DO SERVIDOR
  // =========================================================================
+ // Se o bipe atual era o código obrigatório aguardado, limpa o estado com sucesso
+ if (proximoCodigoObrigatorioPDC !== null && barcodeLimpo === proximoCodigoObrigatorioPDC) {
+ proximoCodigoObrigatorioPDC = null;
+ localStorage.removeItem("pdc_trava_backup");
+ }
+
+ // Calcula se este item validado gerou uma NOVA trava para o próximo bipe
  if (Array.isArray(dadosCompletos)) {
- // Localiza o índice real da linha em toda a base carregada
  const idxGeral = dadosCompletos.findIndex(row => String(row.FORNEC_LAST).trim() === barcodeLimpo);
 
  if (idxGeral !== -1) {
  const linhaAtual = dadosCompletos[idxGeral];
  const volAtual = parseInt(linhaAtual.VOLUMES) || 0;
 
- // CENÁRIO 1 (Ascendente - Linha com Vol 0 bipada): Obriga a ler a linha imediatamente acima
+ // CENÁRIO 1 (Ascendente - Vol Zero): Obriga a ler a linha imediatamente acima
  if (volAtual === 0) {
  if (idxGeral > 0) {
  const linhaAcima = dadosCompletos[idxGeral - 1];
  proximoCodigoObrigatorioPDC = String(linhaAcima.FORNEC_LAST).trim();
  localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
- console.log(`[PDC] Trava Ativada (Cenário 0): Próximo deve ser o de cima: ${proximoCodigoObrigatorioPDC}`);
+ console.log(`[PDC Otimizado] Próximo obrigatório (Acima): ${proximoCodigoObrigatorioPDC}`);
  }
  } 
- // CENÁRIO 2 (Descendente - Linha com Vol > 0 bipada): Olha se a linha imediatamente abaixo na planilha é VOLUMES = 0
+ // CENÁRIO 2 (Descendente): Olha se a linha imediatamente abaixo é VOLUMES = 0
  else if (idxGeral < dadosCompletos.length - 1) {
  const linhaAbaixo = dadosCompletos[idxGeral + 1];
  const volAbaixo = parseInt(linhaAbaixo.VOLUMES) || 0;
@@ -1476,37 +1472,30 @@ async function onScanSuccess(decodedText) {
  if (volAbaixo === 0) {
  proximoCodigoObrigatorioPDC = String(linhaAbaixo.FORNEC_LAST).trim();
  localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
- console.log(`[PDC] Trava Ativada (Cenário Master): Próximo deve ser o de baixo: ${proximoCodigoObrigatorioPDC}`);
+ console.log(`[PDC Otimizado] Próximo obrigatório (Abaixo): ${proximoCodigoObrigatorioPDC}`);
  }
  }
  }
  }
  // =========================================================================
-
+ 
  } else {
  if (typeof tocarBeep === 'function') tocarBeep('erro');
- 
- // 🌟 RESTAURAÇÃO: Retorna ao Vermelho-Claro nativo original se for inválido
  status.innerText = " " + (result.error || "INVÁLIDO");
  status.style.background = "#f8d7da";
- status.style.color = "#721c24"; // Cor de texto nativa do alerta de erro
+ status.style.color = "#721c24"; 
  }
  } catch (error) {
  if (typeof tocarBeep === 'function') tocarBeep('erro');
- 
- // 🌟 RESTAURAÇÃO: Retorna ao Vermelho-Claro nativo de erro em falhas de conexão
  status.innerText = " Erro de conexão";
  status.style.background = "#f8d7da";
  status.style.color = "#721c24";
  } finally {
- // Rotina específica para Desktop/Leitor USB
  const inputUSB = document.getElementById("input-usb");
  if (inputUSB) {
  inputUSB.value = "";
  inputUSB.focus();
  }
- 
- // Delay para evitar leituras duplicadas por trepidação do leitor
  setTimeout(() => { validandoAgora = false; }, 800);
  }
 }
