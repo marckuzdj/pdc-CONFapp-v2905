@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v9</h3>
+    <h3>Passagem de Carga | Conferência v10</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -3224,9 +3224,13 @@ function selecionarTipoOcorrencia(tipo) {
 // =========================================================================
 // 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE COM LOGS DE MONITORAMENTO (F12)
 // =========================================================================
+// =========================================================================
+// 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE COM LOGS E TIPAGEM STRING (FIX)
+// =========================================================================
 function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   console.log(`[PDC RASTREIO] === INÍCIO DA ANÁLISE DE PRIORIDADE ===`);
-  console.log(`[PDC RASTREIO] Último código de barras validado: "${barcodeUltimoValidado}"`);
+  const bLimpo = String(barcodeUltimoValidado).trim();
+  console.log(`[PDC RASTREIO] Último código de barras validado: "${bLimpo}"`);
 
   if (!Array.isArray(dadosCompletos)) {
     console.warn(`[PDC RASTREIO] Erro: 'dadosCompletos' não é um array válido.`);
@@ -3234,7 +3238,7 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   }
 
   const selectRomaneio = document.getElementById("romaneio");
-  const romaneioVal = selectRomaneio ? selectRomaneio.value.trim() : "";
+  const romaneioVal = selectRomaneio ? String(selectRomaneio.value).trim() : "";
   console.log(`[PDC RASTREIO] Romaneio ativo na tela: "${romaneioVal}"`);
 
   // 1. RECONSTRÓI EXATAMENTE A MATRIZ VISUAL DO ROMANEIO ATIVO
@@ -3242,7 +3246,7 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   let flagCaptura = false;
 
   for (let i = 0; i < dadosCompletos.length; i++) {
-    const romLinha = String(dadosCompletos[i].Romaneio || dadosCompletos[i].ROMANEIO || "").trim();
+    const romLinha = String(dadosCompletos[i].Romaneio !== undefined ? dadosCompletos[i].Romaneio : (dadosCompletos[i].ROMANEIO !== undefined ? dadosCompletos[i].ROMANEIO : "")).trim();
     
     if (romLinha === romaneioVal) {
       flagCaptura = true;
@@ -3255,16 +3259,16 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   }
   console.log(`[PDC RASTREIO] Total de linhas mapeadas para este lote: ${baseIsoladaLote.length}`);
 
-  // 2. BUSCA O ÍNDICE EXATO DO BIPE RECENTE
+  // 2. BUSCA O ÍNDICE EXATO DO BIPE RECENTE USANDO STRING CONVERSION
   const idxRelativo = baseIsoladaLote.findIndex(row => {
-    const codFornec = String(row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "")).trim();
-    return codFornec === barcodeUltimoValidado;
+    const codFornecRaw = row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "");
+    return String(codFornecRaw).trim() === bLimpo;
   });
 
   console.log(`[PDC RASTREIO] Posição relativa da linha no lote (Índice): ${idxRelativo}`);
 
   if (idxRelativo === -1) {
-    console.warn(`[PDC RASTREIO] Código "${barcodeUltimoValidado}" não foi localizado na coluna FORNEC_LAST do lote.`);
+    console.warn(`[PDC RASTREIO] Código "${bLimpo}" não foi localizado na coluna FORNEC_LAST do lote.`);
     return null;
   }
 
@@ -3309,6 +3313,7 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   console.log(`%c[VALOR DA VARIÁVEL PENDENTE] proximoCodigoObrigatorioPDC = null (Livre para bips aleatórios)`, `background: #d4edda; color: #155724; font-weight: bold; padding: 2px;`);
   return null;
 }
+
 
 
 
