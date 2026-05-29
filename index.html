@@ -1337,13 +1337,14 @@ async function atualizarStatusTempoReal() {
     
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO COM AUDITORIA DO SERVIDOR) ---
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
+// --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
 async function onScanSuccess(decodedText) {
  if (validandoAgora) return;
  
  // 1. RASTREADOR DE DISPOSITIVO EM TEMPO REAL
  const usbContainer = document.getElementById("container-leitor-usb");
  const isUsb = usbContainer && usbContainer.style.display !== "none" && !usbContainer.classList.contains('hidden');
- window.aparelhoUtilizadoNoLote = isUsb ? "via USB" : "via Mobile";
+ window.aparelhoUtilizado NoLote = isUsb ? "via USB" : "via Mobile";
  
  // 2. DECLARAÇÃO ÚNICA DO CÓDIGO DE BARRAS (CORRIGIDO)
  const barcodeLimpo = decodedText.trim();
@@ -1351,6 +1352,30 @@ async function onScanSuccess(decodedText) {
  const usuario = document.getElementById("usuario").value;
  const status = document.getElementById("status-info");
  
+ // =========================================================================
+ // 🩹 INTERVENÇÃO CIRÚRGICA: BARREIRA DE VALIDAÇÃO CROSS-DOCKING (TRAVA ATIVA)
+ // =========================================================================
+ if (proximoCodigoObrigatorioPDC !== null) {
+ if (barcodeLimpo !== proximoCodigoObrigatorioPDC) {
+ if (typeof tocarBeep === 'function') tocarBeep('erro');
+ status.innerText = ` ⚠️ BIP INCORRETO! OBRIGATÓRIO: ${proximoCodigoObrigatorioPDC}`;
+ status.style.background = "#fff3cd";
+ status.style.color = "#856404";
+ 
+ // Limpeza e foco rápidos no leitor USB se aplicável
+ const inputUSB = document.getElementById("input-usb");
+ if (inputUSB) {
+ inputUSB.value = "";
+ inputUSB.focus();
+ }
+ return; // Aborta e bloqueia o processamento
+ }
+ // Se o bip bateu com o esperado, limpa a trava volátil e o backup do navegador
+ proximoCodigoObrigatorioPDC = null;
+ localStorage.removeItem("pdc_trava_backup"); 
+ }
+ // =========================================================================
+
  // 3. RECUPERAÇÃO DA ÂNCORA: Lê o histórico sincronizado do Sheets
  const contadorEl = document.getElementById("contador");
  const jaLidosNoSheets = parseInt(contadorEl.getAttribute("data-base")) || 0;
@@ -1394,7 +1419,7 @@ async function onScanSuccess(decodedText) {
  const totalAcumulado = jaLidosNoSheets + codigosLidos.length;
  const totalPedidosGeral = parseInt(document.getElementById("total_pedidos").value) || 0;
  
- // Atualiza Contador e Barra de Progresso com o Total Real na Tela
+ // Aktualiza Contador e Barra de Progresso com o Total Real na Tela
  contadorEl.innerText = totalAcumulado;
  if (typeof atualizarBarraProgresso === "function") {
  atualizarBarraProgresso(totalAcumulado);
@@ -1412,6 +1437,42 @@ async function onScanSuccess(decodedText) {
  status.innerText = " VALIDADO E ATUALIZADO";
  status.style.background = "#d4edda";
  status.style.color = "#155724"; // Cor de texto nativa do alerta de sucesso
+
+ // =========================================================================
+ // 🩹 INTERVENÇÃO CIRÚRGICA: CÁLCULO E PERSISTÊNCIA DA PRÓXIMA TRAVA
+ // =========================================================================
+ if (Array.isArray(dadosCompletos)) {
+ // Filtra e isola as linhas exclusivas do romaneio atual
+ const itensDoRomaneio = dadosCompletos.filter(row => String(row.ROMANEIO || row.NUMROM || row.Romaneio).trim() === romaneioVal.trim());
+ 
+ // Localiza o índice da linha correspondente ao código recém-bipado
+ const idxAtual = itensDoRomaneio.findIndex(row => String(row.FORNEC_LAST).trim() === barcodeLimpo);
+
+ if (idxAtual !== -1) {
+ const linhaAtual = itensDoRomaneio[idxAtual];
+ const volAtual = parseInt(linhaAtual.VOLUMES) || 0;
+
+ // CENÁRIO 1 (Ascendente): Se bipa VOLUMES = 0, obriga a ler a linha acima e salva o backup
+ if (volAtual === 0) {
+ if (idxAtual > 0) {
+ const linhaAcima = itensDoRomaneio[idxAtual - 1];
+ proximoCodigoObrigatorioPDC = String(linhaAcima.FORNEC_LAST).trim();
+ localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
+ }
+ } 
+ // CENÁRIO 2 (Descendente): Se bipa VOLUMES > 0, checa se a de baixo é 0 e salva o backup
+ else if (idxAtual < itensDoRomaneio.length - 1) {
+ const linhaAbaixo = itensDoRomaneio[idxAtual + 1];
+ const volAbaixo = parseInt(linhaAbaixo.VOLUMES) || 0;
+ 
+ if (volAbaixo === 0) {
+ proximoCodigoObrigatorioPDC = String(linhaAbaixo.FORNEC_LAST).trim();
+ localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
+ }
+ }
+ }
+ }
+ // =========================================================================
  
  } else {
  if (typeof tocarBeep === 'function') tocarBeep('erro');
@@ -1440,6 +1501,7 @@ async function onScanSuccess(decodedText) {
  setTimeout(() => { validandoAgora = false; }, 800);
  }
 }
+
 
 
 
