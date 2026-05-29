@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v11</h3>
+    <h3>Passagem de Carga | Conferência v12</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -3230,6 +3230,9 @@ function selecionarTipoOcorrencia(tipo) {
 // =========================================================================
 // 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE CORRIGIDO PARA CÉLULAS VAZIAS
 // =========================================================================
+// =========================================================================
+// 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE BRINDADO (FIX DEFINITIVO JSON)
+// =========================================================================
 function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   console.log(`[PDC RASTREIO] === INÍCIO DA ANÁLISE DE PRIORIDADE ===`);
   const bLimpo = String(barcodeUltimoValidado).trim();
@@ -3244,19 +3247,25 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   const romaneioVal = selectRomaneio ? String(selectRomaneio.value).trim() : "";
   console.log(`[PDC RASTREIO] Romaneio ativo na tela: "${romaneioVal}"`);
 
-  // 1. RECONSTRÓI A MATRIZ VISUAL DO ROMANEIO (TRATANDO "0" E CÉLULAS VAZIAS)
+  // 1. RECONSTRÓI A MATRIZ VISUAL DO ROMANEIO (TRATANDO CHAVES INEXISTENTES/UNDEFINED)
   let baseIsoladaLote = [];
   let flagCaptura = false;
 
   for (let i = 0; i < dadosCompletos.length; i++) {
-    const romLinha = String(dadosCompletos[i].Romaneio !== undefined ? dadosCompletos[i].Romaneio : (dadosCompletos[i].ROMANEIO !== undefined ? dadosCompletos[i].ROMANEIO : "")).trim();
+    const item = dadosCompletos[i];
     
-    if (romLinha === romaneioVal) {
+    // Captura o valor bruto tratando chaves inexistentes/undefined de forma reativa
+    const romRaw = item.Romaneio !== undefined ? item.Romaneio : (item.ROMANEIO !== undefined ? item.ROMANEIO : null);
+    
+    // Converte para String limpa apenas se o valor existir de verdade
+    const romLinha = (romRaw !== null && romRaw !== undefined) ? String(romRaw).trim() : "";
+    
+    if (romLinha === romaneioVal && romaneioVal !== "") {
       flagCaptura = true;
-      baseIsoladaLote.push(dadosCompletos[i]);
-    } else if ((romLinha === "0" || romLinha === "") && flagCaptura) {
-      // 🌟 CORREÇÃO CIRÚRGICA: Se a célula estiver vazia ("") ou "0", herda o romaneio ativo
-      baseIsoladaLote.push(dadosCompletos[i]);
+      baseIsoladaLote.push(item);
+    } else if (flagCaptura && (romLinha === "0" || romLinha === "")) {
+      // 🌟 SOLUÇÃO CIRÚRGICA: Se a chave for vazia ("") ou "0", herda legitimamente o romaneio ativo
+      baseIsoladaLote.push(item);
     } else if (romLinha !== "0" && romLinha !== "") {
       flagCaptura = false;
     }
@@ -3277,8 +3286,15 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   }
 
   // 3. GETTERS SEGUROS DE PROPRIEDADES DO JSON
-  const getVol = (row) => parseInt(row.VOLUMES !== undefined ? row.VOLUMES : (row.Volumes !== undefined ? row.Volumes : (row.volumes !== undefined ? row.volumes : 0))) || 0;
-  const getFornec = (row) => String(row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "")).trim();
+  const getVol = (row) => {
+    const vRaw = row.VOLUMES !== undefined ? row.VOLUMES : (row.Volumes !== undefined ? row.Volumes : (row.volumes !== undefined ? row.volumes : 0));
+    return parseInt(vRaw) || 0;
+  };
+  
+  const getFornec = (row) => {
+    const fRaw = row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "");
+    return String(fRaw).trim();
+  };
 
   const volAtual = getVol(baseIsoladaLote[idxRelativo]);
   const temLinhaAbaixo = idxRelativo < baseIsoladaLote.length - 1;
@@ -3317,6 +3333,7 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   console.log(`%c[VALOR DA VARIÁVEL PENDENTE] proximoCodigoObrigatorioPDC = null`, `background: #d4edda; color: #155724; font-weight: bold; padding: 2px;`);
   return null;
 }
+
 
 
 
