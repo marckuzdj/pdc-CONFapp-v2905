@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v10</h3>
+    <h3>Passagem de Carga | Conferência v11</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -3227,6 +3227,9 @@ function selecionarTipoOcorrencia(tipo) {
 // =========================================================================
 // 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE COM LOGS E TIPAGEM STRING (FIX)
 // =========================================================================
+// =========================================================================
+// 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE CORRIGIDO PARA CÉLULAS VAZIAS
+// =========================================================================
 function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   console.log(`[PDC RASTREIO] === INÍCIO DA ANÁLISE DE PRIORIDADE ===`);
   const bLimpo = String(barcodeUltimoValidado).trim();
@@ -3241,7 +3244,7 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   const romaneioVal = selectRomaneio ? String(selectRomaneio.value).trim() : "";
   console.log(`[PDC RASTREIO] Romaneio ativo na tela: "${romaneioVal}"`);
 
-  // 1. RECONSTRÓI EXATAMENTE A MATRIZ VISUAL DO ROMANEIO ATIVO
+  // 1. RECONSTRÓI A MATRIZ VISUAL DO ROMANEIO (TRATANDO "0" E CÉLULAS VAZIAS)
   let baseIsoladaLote = [];
   let flagCaptura = false;
 
@@ -3252,6 +3255,7 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
       flagCaptura = true;
       baseIsoladaLote.push(dadosCompletos[i]);
     } else if ((romLinha === "0" || romLinha === "") && flagCaptura) {
+      // 🌟 CORREÇÃO CIRÚRGICA: Se a célula estiver vazia ("") ou "0", herda o romaneio ativo
       baseIsoladaLote.push(dadosCompletos[i]);
     } else if (romLinha !== "0" && romLinha !== "") {
       flagCaptura = false;
@@ -3259,7 +3263,7 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   }
   console.log(`[PDC RASTREIO] Total de linhas mapeadas para este lote: ${baseIsoladaLote.length}`);
 
-  // 2. BUSCA O ÍNDICE EXATO DO BIPE RECENTE USANDO STRING CONVERSION
+  // 2. BUSCA O ÍNDICE EXATO DO BIPE RECENTE
   const idxRelativo = baseIsoladaLote.findIndex(row => {
     const codFornecRaw = row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "");
     return String(codFornecRaw).trim() === bLimpo;
@@ -3289,7 +3293,7 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
   console.log(`  -> Existe linha acima? ${temLinhaAcima} | Volumes da linha de cima: ${volAcima}`);
 
   // =========================================================================
-  // VALIDAÇÃO DAS CONDIÇÕES COM EXIBIÇÃO DA PRIORIDADE GERADA
+  // VALIDAÇÃO DAS 3 CONDIÇÕES TÉCNICAS
   // =========================================================================
   
   // CONDITION 1: Se col VOLUMES > 0 e a linha de baixo = 0 -> próximo DEVE ser o de baixo
@@ -3308,11 +3312,12 @@ function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
     return codAcima;
   } 
 
-  // CONDITION 3: Se col VOLUMES > 0 e a linha de baixo > 0 -> Ordem aleatória liberada
+  // CONDITION 3: Ordem aleatória liberada
   console.log(`%c[CONDIÇÃO 3 ATIVADA] Nenhuma restrição de Cross-docking.`, `color: #198754; font-weight: bold;`);
-  console.log(`%c[VALOR DA VARIÁVEL PENDENTE] proximoCodigoObrigatorioPDC = null (Livre para bips aleatórios)`, `background: #d4edda; color: #155724; font-weight: bold; padding: 2px;`);
+  console.log(`%c[VALOR DA VARIÁVEL PENDENTE] proximoCodigoObrigatorioPDC = null`, `background: #d4edda; color: #155724; font-weight: bold; padding: 2px;`);
   return null;
 }
+
 
 
 
