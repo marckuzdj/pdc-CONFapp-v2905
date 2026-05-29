@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v8</h3>
+    <h3>Passagem de Carga | Conferência v9</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -3221,45 +3221,95 @@ function selecionarTipoOcorrencia(tipo) {
     // =========================================================================
 // 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE CROSS-DOCKING (3 CONDIÇÕES CRISTALINAS)
 // =========================================================================
+// =========================================================================
+// 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE COM LOGS DE MONITORAMENTO (F12)
+// =========================================================================
 function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
-  if (!Array.isArray(dadosCompletos)) return null;
+  console.log(`[PDC RASTREIO] === INÍCIO DA ANÁLISE DE PRIORIDADE ===`);
+  console.log(`[PDC RASTREIO] Último código de barras validado: "${barcodeUltimoValidado}"`);
 
-  // 1. Encontra a linha atual baseando-se estritamente no valor lido
-  const idx = dadosCompletos.findIndex(row => 
-    String(row.FORNEC_LAST || row.fornec_last || "").trim() === barcodeUltimoValidado
-  );
+  if (!Array.isArray(dadosCompletos)) {
+    console.warn(`[PDC RASTREIO] Erro: 'dadosCompletos' não é um array válido.`);
+    return null;
+  }
 
-  if (idx === -1) return null;
+  const selectRomaneio = document.getElementById("romaneio");
+  const romaneioVal = selectRomaneio ? selectRomaneio.value.trim() : "";
+  console.log(`[PDC RASTREIO] Romaneio ativo na tela: "${romaneioVal}"`);
 
-  // 2. Helpers para capturar dados tratando chaves maiúsculas/minúsculas de forma reativa
+  // 1. RECONSTRÓI EXATAMENTE A MATRIZ VISUAL DO ROMANEIO ATIVO
+  let baseIsoladaLote = [];
+  let flagCaptura = false;
+
+  for (let i = 0; i < dadosCompletos.length; i++) {
+    const romLinha = String(dadosCompletos[i].Romaneio || dadosCompletos[i].ROMANEIO || "").trim();
+    
+    if (romLinha === romaneioVal) {
+      flagCaptura = true;
+      baseIsoladaLote.push(dadosCompletos[i]);
+    } else if ((romLinha === "0" || romLinha === "") && flagCaptura) {
+      baseIsoladaLote.push(dadosCompletos[i]);
+    } else if (romLinha !== "0" && romLinha !== "") {
+      flagCaptura = false;
+    }
+  }
+  console.log(`[PDC RASTREIO] Total de linhas mapeadas para este lote: ${baseIsoladaLote.length}`);
+
+  // 2. BUSCA O ÍNDICE EXATO DO BIPE RECENTE
+  const idxRelativo = baseIsoladaLote.findIndex(row => {
+    const codFornec = String(row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "")).trim();
+    return codFornec === barcodeUltimoValidado;
+  });
+
+  console.log(`[PDC RASTREIO] Posição relativa da linha no lote (Índice): ${idxRelativo}`);
+
+  if (idxRelativo === -1) {
+    console.warn(`[PDC RASTREIO] Código "${barcodeUltimoValidado}" não foi localizado na coluna FORNEC_LAST do lote.`);
+    return null;
+  }
+
+  // 3. GETTERS SEGUROS DE PROPRIEDADES DO JSON
   const getVol = (row) => parseInt(row.VOLUMES !== undefined ? row.VOLUMES : (row.Volumes !== undefined ? row.Volumes : (row.volumes !== undefined ? row.volumes : 0))) || 0;
   const getFornec = (row) => String(row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "")).trim();
 
-  const volAtual = getVol(dadosCompletos[idx]);
-  const temLinhaAbaixo = idx < dadosCompletos.length - 1;
-  const temLinhaAcima = idx > 0;
+  const volAtual = getVol(baseIsoladaLote[idxRelativo]);
+  const temLinhaAbaixo = idxRelativo < baseIsoladaLote.length - 1;
+  const temLinhaAcima = idxRelativo > 0;
 
-  const volAbaixo = temLinhaAbaixo ? getVol(dadosCompletos[idx + 1]) : -1;
-  const volAcima = temLinhaAcima ? getVol(dadosCompletos[idx - 1]) : -1;
+  const volAbaixo = temLinhaAbaixo ? getVol(baseIsoladaLote[idxRelativo + 1]) : -1;
+  const volAcima = temLinhaAcima ? getVol(baseIsoladaLote[idxRelativo - 1]) : -1;
 
-  // CONDITION 1: Se VOLUMES atual > 0 e a linha de baixo = 0 -> Próximo DEVE ser o de baixo
+  console.log(`[PDC RASTREIO] Dados analíticos da linha atual:`);
+  console.log(`  -> Volumes da Linha Atual: ${volAtual}`);
+  console.log(`  -> Existe linha abaixo? ${temLinhaAbaixo} | Volumes da linha de baixo: ${volAbaixo}`);
+  console.log(`  -> Existe linha acima? ${temLinhaAcima} | Volumes da linha de cima: ${volAcima}`);
+
+  // =========================================================================
+  // VALIDAÇÃO DAS CONDIÇÕES COM EXIBIÇÃO DA PRIORIDADE GERADA
+  // =========================================================================
+  
+  // CONDITION 1: Se col VOLUMES > 0 e a linha de baixo = 0 -> próximo DEVE ser o de baixo
   if (volAtual > 0 && temLinhaAbaixo && volAbaixo === 0) {
-    const codAbaixo = getFornec(dadosCompletos[idx + 1]);
-    console.log(`[CONDIÇÃO 1] Ativada. Próximo obrigatório (Abaixo): ${codAbaixo}`);
+    const codAbaixo = getFornec(baseIsoladaLote[idxRelativo + 1]);
+    console.log(`%c[CONDIÇÃO 1 ATIVADA] A linha de baixo tem volume zero!`, `color: #d63384; font-weight: bold;`);
+    console.log(`%c[VALOR DA VARIÁVEL PENDENTE] proximoCodigoObrigatorioPDC = "${codAbaixo}"`, `background: #fff3cd; color: #856404; font-weight: bold; padding: 2px;`);
     return codAbaixo;
   } 
   
-  // CONDITION 2: Se VOLUMES atual = 0 e a linha de cima > 0 -> Próximo DEVE ser o de cima
+  // CONDITION 2: Se col VOLUMES = 0 e a linha de cima > 0 -> próximo DEVE ser o de cima
   if (volAtual === 0 && temLinhaAcima && volAcima > 0) {
-    const codAcima = getFornec(dadosCompletos[idx - 1]);
-    console.log(`[CONDIÇÃO 2] Ativada. Próximo obrigatório (Acima): ${codAcima}`);
+    const codAcima = getFornec(baseIsoladaLote[idxRelativo - 1]);
+    console.log(`%c[CONDIÇÃO 2 ATIVADA] Esta linha tem volume zero! Forçando retorno à linha mestre acima.`, `color: #d63384; font-weight: bold;`);
+    console.log(`%c[VALOR DA VARIÁVEL PENDENTE] proximoCodigoObrigatorioPDC = "${codAcima}"`, `background: #fff3cd; color: #856404; font-weight: bold; padding: 2px;`);
     return codAcima;
   } 
 
-  // CONDITION 3: Se col VOLUMES > 0 e a linha de baixo > 0 (Ou qualquer outro cenário) -> Ordem aleatória
-  console.log(`[CONDIÇÃO 3] Ordem aleatória liberada.`);
+  // CONDITION 3: Se col VOLUMES > 0 e a linha de baixo > 0 -> Ordem aleatória liberada
+  console.log(`%c[CONDIÇÃO 3 ATIVADA] Nenhuma restrição de Cross-docking.`, `color: #198754; font-weight: bold;`);
+  console.log(`%c[VALOR DA VARIÁVEL PENDENTE] proximoCodigoObrigatorioPDC = null (Livre para bips aleatórios)`, `background: #d4edda; color: #155724; font-weight: bold; padding: 2px;`);
   return null;
 }
+
 
 
 
