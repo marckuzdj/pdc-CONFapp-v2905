@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v13</h3>
+    <h3>Passagem de Carga | Conferência v14</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -3238,6 +3238,9 @@ function selecionarTipoOcorrencia(tipo) {
 // =========================================================================
 // 🩹 FUNÇÃO DEDICADA: CONSULTA DE PRIORIDADE EM TEMPO REAL VIA ENDPOINT API
 // =========================================================================
+// =========================================================================
+// 🩹 FUNÇÃO DEDICADA: FILTRO HÍBRIDO EM TEMPO REAL (BLINDAGEM CONTRA DUPLICIDADE)
+// =========================================================================
 async function calcularProximoCodigoPrioritario(barcodeUltimoValidado, romaneioAtivo) {
   try {
     console.log(`[PDC API] Consultando prioridade para o código: ${barcodeUltimoValidado}`);
@@ -3252,24 +3255,25 @@ async function calcularProximoCodigoPrioritario(barcodeUltimoValidado, romaneioA
     const data = await response.json();
     
     if (data && data.proximo) {
-      console.log(`%c[TRAVA API ATIVADA] O servidor determinou prioridade obrigatória: ${data.proximo}`, `background: #fff3cd; color: #856404; font-weight: bold;`);
-      return data.proximo;
+      const codigoSugeridoPeloServidor = String(data.proximo).trim();
+      
+      // 🌟 FILTRO ULTRA-SEGURO: Checa se o item prioritário já foi lido nesta sessão local
+      if (Array.isArray(codigosLidos) && codigosLidos.includes(codigoSugeridoPeloServidor)) {
+        console.log(`%c[PDC FILTRO] Loop evitado! O código "${codigoSugeridoPeloServidor}" já foi lido anteriormente. Liberando modo aleatório.`, `color: #198754; font-weight: bold;`);
+        return null; // Descarta a trava e libera o operador
+      }
+      
+      console.log(`%c[TRAVA API ATIVADA] O servidor determinou prioridade obrigatória: ${codigoSugeridoPeloServidor}`, `background: #fff3cd; color: #856404; font-weight: bold;`);
+      return codigoSugeridoPeloServidor;
     }
     
     console.log(`[PDC API] Servidor liberou modo aleatório.`);
     return null;
   } catch (error) {
     console.error("Erro ao consultar prioridade em tempo real no servidor:", error);
-    return null; // Fallback seguro para não travar a operação em caso de oscilação de rede
+    return null; 
   }
 }
-
-
-
-
-
-
-
 
     
 </script>
