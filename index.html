@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v6</h3>
+    <h3>Passagem de Carga | Conferência v7</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -1348,6 +1348,7 @@ async function atualizarStatusTempoReal() {
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
 // --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
+// --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
 async function onScanSuccess(decodedText) {
  if (validandoAgora) return;
  
@@ -1363,7 +1364,7 @@ async function onScanSuccess(decodedText) {
  const status = document.getElementById("status-info");
  
  // =========================================================================
- // 🩹 BARREIRA DE VALIDAÇÃO CRÍTICA: TRATAMENTO DA TRAVA ATIVA (IMEDIATO)
+ // 🩹 BARREIRA DE VALIDAÇÃO CRÍTICA: TRAVA ATIVA DAS CONDIÇÕES 1 E 2
  // =========================================================================
  if (proximoCodigoObrigatorioPDC !== null) {
  if (barcodeLimpo !== proximoCodigoObrigatorioPDC) {
@@ -1377,7 +1378,7 @@ async function onScanSuccess(decodedText) {
  inputUSB.value = "";
  inputUSB.focus();
  }
- return; // BARRADO IMEDIATAMENTE (CORTA A EXECUÇÃO AQUI)
+ return; // Bloqueia o processamento imediatamente
  }
  }
  // =========================================================================
@@ -1386,7 +1387,7 @@ async function onScanSuccess(decodedText) {
  const contadorEl = document.getElementById("contador");
  const jaLidosNoSheets = parseInt(contadorEl.getAttribute("data-base")) || 0;
  
- // Validação local rápida (evita processar o mesmo item duas vezes na mesma sessão)
+ // Validação local rápida
  if (codigosLidos.includes(barcodeLimpo)) {
  if (typeof tocarBeep === 'function') tocarBeep('erro');
  status.innerText = " JÁ LIDO AGORA: " + barcodeLimpo;
@@ -1396,7 +1397,7 @@ async function onScanSuccess(decodedText) {
  }
  validandoAgora = true;
 
- // 🌟 ATUALIZAÇÃO DE CORES: ALTO CONTRASTE (VERMELHO/BRANCO) NA VALIDAÇÃO
+ // 🌟 ATUALIZAÇÃO DE CORES
  status.innerText = " Validando: " + barcodeLimpo + "...";
  status.style.background = "#dc3545"; 
  status.style.color = "#ffffff";     
@@ -1439,41 +1440,47 @@ async function onScanSuccess(decodedText) {
  status.style.color = "#155724"; 
 
  // =========================================================================
- // 🩹 ENGENHARIA REVERSA DE FLUXO: SÓ CALCULA/LIMPA A TRAVA APÓS SUCESSO DO SERVIDOR
+ // 🩹 APLICAÇÃO CIRÚRGICA DAS SUAS 3 CONDIÇÕES DIRETAS
  // =========================================================================
- // Se o bipe atual era o código obrigatório aguardado, limpa o estado com sucesso
+ // Se o bip atual limpou a trava existente, reseta o estado
  if (proximoCodigoObrigatorioPDC !== null && barcodeLimpo === proximoCodigoObrigatorioPDC) {
  proximoCodigoObrigatorioPDC = null;
  localStorage.removeItem("pdc_trava_backup");
  }
 
- // Calcula se este item validado gerou uma NOVA trava para o próximo bipe
  if (Array.isArray(dadosCompletos)) {
- const idxGeral = dadosCompletos.findIndex(row => String(row.FORNEC_LAST).trim() === barcodeLimpo);
+ // Encontra a linha atual baseada estritamente no valor de FORNEC_LAST lido
+ const idx = dadosCompletos.findIndex(row => String(row.FORNEC_LAST || row.fornec_last || "").trim() === barcodeLimpo);
 
- if (idxGeral !== -1) {
- const linhaAtual = dadosCompletos[idxGeral];
- const volAtual = parseInt(linhaAtual.VOLUMES) || 0;
+ if (idx !== -1) {
+ // Mapeamento dinâmico das chaves para evitar quebras por maiúsculas/minúsculas
+ const getVol = (row) => parseInt(row.VOLUMES !== undefined ? row.VOLUMES : (row.Volumes !== undefined ? row.Volumes : (row.volumes !== undefined ? row.volumes : 0))) || 0;
+ const getFornec = (row) => String(row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "")).trim();
 
- // CENÁRIO 1 (Ascendente - Vol Zero): Obriga a ler a linha imediatamente acima
- if (volAtual === 0) {
- if (idxGeral > 0) {
- const linhaAcima = dadosCompletos[idxGeral - 1];
- proximoCodigoObrigatorioPDC = String(linhaAcima.FORNEC_LAST).trim();
+ const volAtual = getVol(dadosCompletos[idx]);
+ const temLinhaAbaixo = idx < dadosCompletos.length - 1;
+ const temLinhaAcima = idx > 0;
+
+ const volAbaixo = temLinhaAbaixo ? getVol(dadosCompletos[idx + 1]) : -1;
+ const volAcima = temLinhaAcima ? getVol(dadosCompletos[idx - 1]) : -1;
+
+ // CONDITION 1: Se col VOLUMES > 0 e a linha de baixo = 0 -> próximo DEVE ser o de baixo
+ if (volAtual > 0 && temLinhaAbaixo && volAbaixo === 0) {
+ proximoCodigoObrigatorioPDC = getFornec(dadosCompletos[idx + 1]);
  localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
- console.log(`[PDC Otimizado] Próximo obrigatório (Acima): ${proximoCodigoObrigatorioPDC}`);
- }
+ console.log(`[CONDIÇÃO 1] Ativada. Próximo obrigatório: ${proximoCodigoObrigatorioPDC}`);
  } 
- // CENÁRIO 2 (Descendente): Olha se a linha imediatamente abaixo é VOLUMES = 0
- else if (idxGeral < dadosCompletos.length - 1) {
- const linhaAbaixo = dadosCompletos[idxGeral + 1];
- const volAbaixo = parseInt(linhaAbaixo.VOLUMES) || 0;
- 
- if (volAbaixo === 0) {
- proximoCodigoObrigatorioPDC = String(linhaAbaixo.FORNEC_LAST).trim();
+ // CONDITION 2: Se col VOLUMES = 0 e a linha de cima > 0 -> próximo DEVE ser o de cima
+ else if (volAtual === 0 && temLinhaAcima && volAcima > 0) {
+ proximoCodigoObrigatorioPDC = getFornec(dadosCompletos[idx - 1]);
  localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
- console.log(`[PDC Otimizado] Próximo obrigatório (Abaixo): ${proximoCodigoObrigatorioPDC}`);
- }
+ console.log(`[CONDIÇÃO 2] Ativada. Próximo obrigatório: ${proximoCodigoObrigatorioPDC}`);
+ } 
+ // CONDITION 3: Se col VOLUMES > 0 e a linha de baixo > 0 (ou qualquer outra combinação) -> Ordem aleatória
+ else {
+ proximoCodigoObrigatorioPDC = null;
+ localStorage.removeItem("pdc_trava_backup");
+ console.log(`[CONDIÇÃO 3] Modo aleatório mantido.`);
  }
  }
  }
@@ -1499,6 +1506,7 @@ async function onScanSuccess(decodedText) {
  setTimeout(() => { validandoAgora = false; }, 800);
  }
 }
+
 
 
 
