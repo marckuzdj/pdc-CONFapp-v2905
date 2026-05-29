@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v19</h3>
+    <h3>Passagem de Carga | Conferência v20</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -2396,22 +2396,27 @@ if (fluxoAtivo === "Devolver" && checkboxes.length === 0) {
 // CIRÚRGICO: Aplicação do sufixo de conclusão condicional direto na string final
 let descricaoFinalComItens = textoDigitadoUsuario + sufixoPedidosFormatado;
 
-if (typeof tipoOcorrenciaSelecionada !== "undefined" && tipoOcorrenciaSelecionada === "Informar") {
-    // =========================================================================
-    // 🌟 CAPTURA E FORMATAÇÃO DA DATA/HORA LOCAL (EX: 28-05-2026 12:34)
-    // =========================================================================
-    const agora = new Date();
-    const dia = String(agora.getDate()).padStart(2, '0');
-    const mes = String(agora.getMonth() + 1).padStart(2, '0'); // Mês inicia em 0
-    const ano = agora.getFullYear();
-    const hora = String(agora.getHours()).padStart(2, '0');
-    const minuto = String(agora.getMinutes()).padStart(2, '0');
-    
-    const dataFormatada = `${dia}-${mes}-${ano} ${hora}:${minuto}`;
+// --- SUBSTITUIÇÃO CIRÚRGICA NA PÁGINA 4 ---
+const sufixoPedidosFormatado = " - [Pedidos Afetados: " + listaCodigos.join(", ") + "]";
+// CIRÚRGICO: Aplicação do sufixo de conclusão condicional direto na string final
+let descricaoFinalComItens = textoDigitadoUsuario + sufixoPedidosFormatado;
 
-    // 🌟 INJEÇÃO DA DATA NO INÍCIO DO SUFIXO DE CONCLUÍDO SOLICITADO
-    descricaoFinalComItens += ` | [${dataFormatada}] Volumes confirmados / CONCLUÍDO`;
-    // =========================================================================
+if (fluxoAtivo === "Informar") {
+ // =========================================================================
+ // 🩹 INTERVENÇÃO CIRÚRGICA: FORMATAÇÃO DO CARIMBO DE SUCESSO EM MODO INFORMAR
+ // =========================================================================
+ const agora = new Date();
+ const dia = String(agora.getDate()).padStart(2, '0');
+ const mes = String(agora.getMonth() + 1).padStart(2, '0'); // Mês inicia em 0
+ const ano = agora.getFullYear();
+ const hora = String(agora.getHours()).padStart(2, '0');
+ const minuto = String(agora.getMinutes()).padStart(2, '0');
+ 
+ const dataFormatada = `${dia}-${mes}-${ano} ${hora}:${minuto}`;
+ 
+ // Concatenação reta e limpa do sufixo com espaço simples
+ descricaoFinalComItens += ` [${dataFormatada}] Volumes confirmados / CONCLUÍDO`;
+ // =========================================================================
 }
 
 // Captura direta do romaneio ativo na tela (Mantido original da página 4)
@@ -2425,15 +2430,19 @@ const elementoRomaneio = document.getElementById("romaneio");
  romaneioId = romaneioSendoFinalizado.toString().trim().toUpperCase();
  }
  
- btn.disabled = true;
- 
- // 🌟 CIRÚRGICO: Gerenciamento em cascata da barreira de checagem do Token no Servidor
+// --- SUBSTITUIÇÃO CIRÚRGICA NA PÁGINA 5 ---
+btn.disabled = true;
+
+// CIRÚRGICO: Gerenciamento em cascata da barreira de checagem do Token no Servidor
 let tokenDigitadoLimpo = tokenDev.trim();
 
 if (fluxoAtivo === "Informar") {
-    // Se o fluxo for Informar, ignora a validação HTTP do Token e pula direto para o processamento de imagem
-    console.log("⚙️ Modo Informar Ativo: Ignorando checagem cruzada de tokens no Apps Script.");
+ // 🩹 INTERVENÇÃO CIRÚRGICA: Força o token vazio no payload para consolidar o bloqueio
+ tokenDigitadoLimpo = "";
+ console.log(" Modo Informar Ativo: Ignorando checagem cruzada de tokens no Apps Script e limpando variável.");
 } else {
+ // Fluxo original de Devolução mantido intacto e seguro
+
    // Fluxo original de Devolução mantido intacto e seguro
    btn.innerText = "Validando Token...";
    try {
@@ -2475,23 +2484,31 @@ if (fluxoAtivo === "Informar") {
  });
  }
  
- btn.innerText = "Gravando...";
- // Prepara o payload para o fechamento transacional (POST)
+btn.innerText = "Gravando...";
+
+// Prepara o payload para o fechamento transacional (POST)
 // --- CORREÇÃO CIRÚRGICA DO PAYLOAD (LINHAS 2357 A 2375) ---
 // --- CORREÇÃO CIRÚRGICA DE GRAFIA (LINHAS 2357 A 2372) ---
 const payloadOcorrencia = {
-    action: "salvarFluxoOcorrenciaCONF",
-    romaneio: romaneioId,
-    oc_motivo: motivo, 
-    // 🌟 CORREÇÃO: Mudado de 'Items' com M para 'Itens' com N para casar com a variável
-    oc_descricao: descricaoFinalComItens, 
-    oc_token: tokenDigitadoLimpo,
-    oc_foto_data: fotoBase64, 
-    oc_foto_name: fotoNome,
-    oc_itens_remover: JSON.stringify(listaCodigos),
-    tipoFluxo: fluxoAtivo
+ action: "salvarFluxoOcorrenciaCONF",
+ romaneio: romaneioId,
+ oc_motivo: motivo, 
+ 
+ // CORREÇÃO: Mudado de 'Items' com M para 'Itens' com N para casar com a variável
+ oc_descricao: descricaoFinalComItens, 
+ oc_token: tokenDigitadoLimpo,
+ oc_foto_data: fotoBase64, 
+ oc_foto_name: fotoNome,
+ oc_itens_remover: JSON.stringify(listaCodigos),
+ tipoFluxo: fluxoAtivo,
+ 
+ // =========================================================================
+ // 🩹 INTERVENÇÃO CIRÚRGICA: CONDICIONAL ABSOLUTA PARA A COLUNA TOKEN3
+ // =========================================================================
+ // Se for Informar, envia uma string vazia garantindo que o servidor NÃO salve "0"
+ oc_token3: fluxoAtivo === "Informar" ? "" : "0"
+ // =========================================================================
 };
-// -----------------------------------------------------------
 
 
 // 🌟 AGORA A SINTAXE FICA 100% CORRETA PARA A LINHA 2371
@@ -3170,6 +3187,9 @@ async function abrirFluxoOcorrenciaVoluntaria() {
 // Variable global para armazenar o estado do botão ativo (Inicia com Devolver ou Informar)
 let tipoFluxoSelecionado = "Informar"; 
 
+// Variable global para armazenar o estado do botão ativo (Inicia com Devolver ou Informar)
+let tipoFluxoSelecionado = "Informar"; 
+
 function selecionarTipoOcorrencia(tipo) {
     tipoFluxoSelecionado = tipo;
     console.log("🌟 Tipo de fluxo alterado dinamicamente para:", tipo);
@@ -3200,6 +3220,10 @@ function selecionarTipoOcorrencia(tipo) {
     // Localiza o rótulo de texto que fica imediatamente acima da combobox de motivos
     const labelMotivo = comboboxMotivo ? comboboxMotivo.previousElementSibling : null;
 
+    // Captura o input de token de devolução mostrado no print
+    // Nota: Substitua "token_devolucao" pelo id real do seu HTML se for diferente
+    const inputTokenDevolucao = document.getElementById("token_devolucao") || document.getElementById("token-devolucao") || document.querySelector("input[placeholder*='token']");
+
     if (tipo === "Informar") {
         // A. Altera o texto do cabeçalho para Informativo
         if (labelMotivo) {
@@ -3221,6 +3245,17 @@ function selecionarTipoOcorrencia(tipo) {
             comboboxMotivo.style.cursor = "not-allowed";
         }
 
+        // =====================================================================
+        // 🩹 INTERVENÇÃO CIRÚRGICA: TRAVA DO INPUT DE TOKEN NA ABA INFORMAR
+        // =====================================================================
+        if (inputTokenDevolucao) {
+            inputTokenDevolucao.value = ""; // Limpa qualquer resíduo digitado
+            inputTokenDevolucao.disabled = true;
+            inputTokenDevolucao.style.backgroundColor = "#e9ecef"; // Feedback cinza padrão
+            inputTokenDevolucao.style.cursor = "not-allowed";
+        }
+        // =====================================================================
+
     } else if (tipo === "Devolver") {
         // A. Restaura o texto original do rótulo operacional de devolução
         if (labelMotivo) {
@@ -3234,9 +3269,20 @@ function selecionarTipoOcorrencia(tipo) {
             comboboxMotivo.style.backgroundColor = "#ffffff"; 
             comboboxMotivo.style.cursor = "default";
         }
+
+        // =====================================================================
+        // 🩹 INTERVENÇÃO CIRÚRGICA: LIBERAÇÃO DO INPUT DE TOKEN NA ABA DEVOLVER
+        // =====================================================================
+        if (inputTokenDevolucao) {
+            inputTokenDevolucao.disabled = false;
+            inputTokenDevolucao.style.backgroundColor = "#ffffff"; // Restaura fundo branco
+            inputTokenDevolucao.style.cursor = "default";
+        }
+        // =====================================================================
     }
     // =========================================================================
 }
+
 
     // =========================================================================
 // 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE CROSS-DOCKING (3 CONDIÇÕES CRISTALINAS)
