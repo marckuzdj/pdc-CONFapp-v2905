@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v12</h3>
+    <h3>Passagem de Carga | Conferência v13</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -1441,16 +1441,18 @@ async function onScanSuccess(decodedText) {
  status.style.color = "#155724"; 
 
  // =========================================================================
- // 🩹 ACIONAMENTO REATIVO DA FUNÇÃO DE PRIORIDADE ISOLADA
+ // 🩹 ACIONAMENTO ASSÍNCRONO DA PRIORIDADE EM TEMPO REAL
  // =========================================================================
- // Chama a nova função isolada para definir se este bip de sucesso gerou alguma prioridade obrigatória
- proximoCodigoObrigatorioPDC = calcularProximoCodigoPrioritario(barcodeLimpo);
+ // Consulta o servidor para saber se o item validado gerou restrições na planilha
+ proximoCodigoObrigatorioPDC = await calcularProximoCodigoPrioritario(barcodeLimpo, romaneioVal);
  
  if (proximoCodigoObrigatorioPDC !== null) {
- localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
+   localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
  } else {
- localStorage.removeItem("pdc_trava_backup");
+   localStorage.removeItem("pdc_trava_backup");
  }
+ // =========================================================================
+
  // =========================================================================
  
  } else {
@@ -3233,106 +3235,35 @@ function selecionarTipoOcorrencia(tipo) {
 // =========================================================================
 // 🩹 FUNÇÃO DEDICADA: MAPEADOR DE PRIORIDADE BRINDADO (FIX DEFINITIVO JSON)
 // =========================================================================
-function calcularProximoCodigoPrioritario(barcodeUltimoValidado) {
-  console.log(`[PDC RASTREIO] === INÍCIO DA ANÁLISE DE PRIORIDADE ===`);
-  const bLimpo = String(barcodeUltimoValidado).trim();
-  console.log(`[PDC RASTREIO] Último código de barras validado: "${bLimpo}"`);
-
-  if (!Array.isArray(dadosCompletos)) {
-    console.warn(`[PDC RASTREIO] Erro: 'dadosCompletos' não é um array válido.`);
-    return null;
-  }
-
-  const selectRomaneio = document.getElementById("romaneio");
-  const romaneioVal = selectRomaneio ? String(selectRomaneio.value).trim() : "";
-  console.log(`[PDC RASTREIO] Romaneio ativo na tela: "${romaneioVal}"`);
-
-  // 1. RECONSTRÓI A MATRIZ VISUAL DO ROMANEIO (TRATANDO CHAVES INEXISTENTES/UNDEFINED)
-  let baseIsoladaLote = [];
-  let flagCaptura = false;
-
-  for (let i = 0; i < dadosCompletos.length; i++) {
-    const item = dadosCompletos[i];
+// =========================================================================
+// 🩹 FUNÇÃO DEDICADA: CONSULTA DE PRIORIDADE EM TEMPO REAL VIA ENDPOINT API
+// =========================================================================
+async function calcularProximoCodigoPrioritario(barcodeUltimoValidado, romaneioAtivo) {
+  try {
+    console.log(`[PDC API] Consultando prioridade para o código: ${barcodeUltimoValidado}`);
     
-    // Captura o valor bruto tratando chaves inexistentes/undefined de forma reativa
-    const romRaw = item.Romaneio !== undefined ? item.Romaneio : (item.ROMANEIO !== undefined ? item.ROMANEIO : null);
+    const params = new URLSearchParams({
+      action: "calcularProximaPrioridadePDC",
+      romaneio: romaneioAtivo,
+      barcode: barcodeUltimoValidado
+    });
     
-    // Converte para String limpa apenas se o valor existir de verdade
-    const romLinha = (romRaw !== null && romRaw !== undefined) ? String(romRaw).trim() : "";
+    const response = await fetch(`${urlSheets}?${params.toString()}`);
+    const data = await response.json();
     
-    if (romLinha === romaneioVal && romaneioVal !== "") {
-      flagCaptura = true;
-      baseIsoladaLote.push(item);
-    } else if (flagCaptura && (romLinha === "0" || romLinha === "")) {
-      // 🌟 SOLUÇÃO CIRÚRGICA: Se a chave for vazia ("") ou "0", herda legitimamente o romaneio ativo
-      baseIsoladaLote.push(item);
-    } else if (romLinha !== "0" && romLinha !== "") {
-      flagCaptura = false;
+    if (data && data.proximo) {
+      console.log(`%c[TRAVA API ATIVADA] O servidor determinou prioridade obrigatória: ${data.proximo}`, `background: #fff3cd; color: #856404; font-weight: bold;`);
+      return data.proximo;
     }
-  }
-  console.log(`[PDC RASTREIO] Total de linhas mapeadas para este lote: ${baseIsoladaLote.length}`);
-
-  // 2. BUSCA O ÍNDICE EXATO DO BIPE RECENTE
-  const idxRelativo = baseIsoladaLote.findIndex(row => {
-    const codFornecRaw = row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "");
-    return String(codFornecRaw).trim() === bLimpo;
-  });
-
-  console.log(`[PDC RASTREIO] Posição relativa da linha no lote (Índice): ${idxRelativo}`);
-
-  if (idxRelativo === -1) {
-    console.warn(`[PDC RASTREIO] Código "${bLimpo}" não foi localizado na coluna FORNEC_LAST do lote.`);
+    
+    console.log(`[PDC API] Servidor liberou modo aleatório.`);
     return null;
+  } catch (error) {
+    console.error("Erro ao consultar prioridade em tempo real no servidor:", error);
+    return null; // Fallback seguro para não travar a operação em caso de oscilação de rede
   }
-
-  // 3. GETTERS SEGUROS DE PROPRIEDADES DO JSON
-  const getVol = (row) => {
-    const vRaw = row.VOLUMES !== undefined ? row.VOLUMES : (row.Volumes !== undefined ? row.Volumes : (row.volumes !== undefined ? row.volumes : 0));
-    return parseInt(vRaw) || 0;
-  };
-  
-  const getFornec = (row) => {
-    const fRaw = row.FORNEC_LAST !== undefined ? row.FORNEC_LAST : (row.fornec_last !== undefined ? row.fornec_last : "");
-    return String(fRaw).trim();
-  };
-
-  const volAtual = getVol(baseIsoladaLote[idxRelativo]);
-  const temLinhaAbaixo = idxRelativo < baseIsoladaLote.length - 1;
-  const temLinhaAcima = idxRelativo > 0;
-
-  const volAbaixo = temLinhaAbaixo ? getVol(baseIsoladaLote[idxRelativo + 1]) : -1;
-  const volAcima = temLinhaAcima ? getVol(baseIsoladaLote[idxRelativo - 1]) : -1;
-
-  console.log(`[PDC RASTREIO] Dados analíticos da linha atual:`);
-  console.log(`  -> Volumes da Linha Atual: ${volAtual}`);
-  console.log(`  -> Existe linha abaixo? ${temLinhaAbaixo} | Volumes da linha de baixo: ${volAbaixo}`);
-  console.log(`  -> Existe linha acima? ${temLinhaAcima} | Volumes da linha de cima: ${volAcima}`);
-
-  // =========================================================================
-  // VALIDAÇÃO DAS 3 CONDIÇÕES TÉCNICAS
-  // =========================================================================
-  
-  // CONDITION 1: Se col VOLUMES > 0 e a linha de baixo = 0 -> próximo DEVE ser o de baixo
-  if (volAtual > 0 && temLinhaAbaixo && volAbaixo === 0) {
-    const codAbaixo = getFornec(baseIsoladaLote[idxRelativo + 1]);
-    console.log(`%c[CONDIÇÃO 1 ATIVADA] A linha de baixo tem volume zero!`, `color: #d63384; font-weight: bold;`);
-    console.log(`%c[VALOR DA VARIÁVEL PENDENTE] proximoCodigoObrigatorioPDC = "${codAbaixo}"`, `background: #fff3cd; color: #856404; font-weight: bold; padding: 2px;`);
-    return codAbaixo;
-  } 
-  
-  // CONDITION 2: Se col VOLUMES = 0 e a linha de cima > 0 -> próximo DEVE ser o de cima
-  if (volAtual === 0 && temLinhaAcima && volAcima > 0) {
-    const codAcima = getFornec(baseIsoladaLote[idxRelativo - 1]);
-    console.log(`%c[CONDIÇÃO 2 ATIVADA] Esta linha tem volume zero! Forçando retorno à linha mestre acima.`, `color: #d63384; font-weight: bold;`);
-    console.log(`%c[VALOR DA VARIÁVEL PENDENTE] proximoCodigoObrigatorioPDC = "${codAcima}"`, `background: #fff3cd; color: #856404; font-weight: bold; padding: 2px;`);
-    return codAcima;
-  } 
-
-  // CONDITION 3: Ordem aleatória liberada
-  console.log(`%c[CONDIÇÃO 3 ATIVADA] Nenhuma restrição de Cross-docking.`, `color: #198754; font-weight: bold;`);
-  console.log(`%c[VALOR DA VARIÁVEL PENDENTE] proximoCodigoObrigatorioPDC = null`, `background: #d4edda; color: #155724; font-weight: bold; padding: 2px;`);
-  return null;
 }
+
 
 
 
