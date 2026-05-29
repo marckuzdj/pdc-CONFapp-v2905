@@ -368,7 +368,7 @@
 
 <!-- 1. TELA DE LOGIN -->
 <div id="screen-login" class="card"> <!-- Adicionado a classe card aqui -->
-    <h3>Passagem de Carga | Conferência v4</h3>
+    <h3>Passagem de Carga | Conferência v5</h3>
     <label>E-mail</label>
     <input type="email" id="login-user" placeholder="seu@email.com">
     
@@ -1172,57 +1172,66 @@ async function atualizarDadosExtras() {
  }
 
  // =========================================================================
- // 🩹 INTERVENÇÃO CIRÚRGICA: ANALISADOR REATIVO DE SESSÃO PARCIAL ANTERIOR
+ // 🩹 INTERVENÇÃO CIRÚRGICA: ANALISADOR REATIVO DE SESSÃO PARCIAL ANTERIOR (CORRIGIDO)
  // =========================================================================
- proximoCodigoObrigatorioPDC = null; // Zera trava volátil residual por segurança
+ proximoCodigoObrigatorioPDC = null; 
 
  if (Array.isArray(dadosCompletos)) {
-   // Filtra os itens do Romaneio ativo vindos da sua estrutura em memória
-   const itensDoRomaneio = dadosCompletos.filter(row => String(row.Romaneio || row.NUMROM).trim() === selectedId.trim());
-   
-   // Cria um Set rápido com os códigos que ainda estão faltantes na planilha
-   const conjuntoFaltantes = new Set(result.faltantes.map(barcode => String(barcode).trim()));
-   
-   // Loop de trás para frente para achar a ÚLTIMA linha que NÃO está na lista de faltantes (Conferência Concluída)
-   let idxUltimoConferido = -1;
-   for (let i = itensDoRomaneio.length - 1; i >= 0; i--) {
-     const codFornec = String(itensDoRomaneio[i].FORNEC_LAST).trim();
-     if (!conjuntoFaltantes.has(codFornec)) {
-       idxUltimoConferido = i;
-       break;
-     }
-   }
+ const conjuntoFaltantes = new Set(result.faltantes.map(barcode => String(barcode).trim()));
+ 
+ // Identifica quais índices da base completa pertencem a este romaneio (tratando as linhas com '0')
+ let escopoIndicesRomaneio = [];
+ let pertenceAoRomaneioAtivo = false;
 
-   // Se houver registro de bipe anterior guardado no banco, analisa se gerou trava de encadeamento
-   if (idxUltimoConferido !== -1) {
-     const linhaUltima = itensDoRomaneio[idxUltimoConferido];
-     const volUltimo = parseInt(linhaUltima.VOLUMES) || 0;
+ for (let i = 0; i < dadosCompletos.length; i++) {
+ const romaneioLinha = String(dadosCompletos[i].Romaneio || dadosCompletos[i].ROMANEIO || "").trim();
+ if (romaneioLinha === selectedId.trim()) {
+ pertenceAoRomaneioAtivo = true;
+ escopoIndicesRomaneio.push(i);
+ } else if (romaneioLinha === "0" && pertenceAoRomaneioAtivo) {
+ // Se for a linha espelho do Cross-docking (contendo 0), ela herda o contexto do romaneio ativo
+ escopoIndicesRomaneio.push(i);
+ } else if (romaneioLinha !== "0" && romaneioLinha !== "") {
+ pertenceAoRomaneioAtivo = false;
+ }
+ }
 
-     // CENÁRIO 1 (Ascendente - Vol Zero): Próximo obrigatório é a linha de cima
-     if (volUltimo === 0) {
-       if (idxUltimoConferido > 0) {
-         const linhaAcima = itensDoRomaneio[idxUltimoConferido - 1];
-         const codAcima = String(linhaAcima.FORNEC_LAST).trim();
-         
-         // SÓ reativa a trava se a linha de cima ainda constar como pendente/faltante
-         if (conjuntoFaltantes.has(codAcima)) {
-           proximoCodigoObrigatorioPDC = codAcima;
-           console.log(`[PDC Restauração] Trava Ascendente Reativada. Aguardando: ${proximoCodigoObrigatorioPDC}`);
-         }
-       }
-     } 
-     // CENÁRIO 2 (Descendente - Próxima de Baixo com Vol Zero): Próximo obrigatório é a linha de baixo
-     else if (idxUltimoConferido < itensDoRomaneio.length - 1) {
-       const linhaAbaixo = itensDoRomaneio[idxUltimoConferido + 1];
-       const volAbaixo = parseInt(linhaAbaixo.VOLUMES) || 0;
-       const codAbaixo = String(linhaAbaixo.FORNEC_LAST).trim();
-       
-       if (volAbaixo === 0 && conjuntoFaltantes.has(codAbaixo)) {
-         proximoCodigoObrigatorioPDC = codAbaixo;
-         console.log(`[PDC Restauração] Trava Descendente Reativada. Aguardando: ${proximoCodigoObrigatorioPDC}`);
-       }
-     }
-   }
+ // Procura de trás para frente no escopo do romaneio qual foi o último item validado (que não está nos faltantes)
+ let idxUltimoConferidoGeral = -1;
+ for (let j = escopoIndicesRomaneio.length - 1; j >= 0; j--) {
+ const idxBase = escopoIndicesRomaneio[j];
+ const codFornec = String(dadosCompletos[idxBase].FORNEC_LAST).trim();
+ if (!conjuntoFaltantes.has(codFornec)) {
+ idxUltimoConferidoGeral = idxBase;
+ break;
+ }
+ }
+
+ // Aplica as regras de trava no reinício da sessão baseando-se no índice global correto
+ if (idxUltimoConferidoGeral !== -1) {
+ const linhaUltima = dadosCompletos[idxUltimoConferidoGeral];
+ const volUltimo = parseInt(linhaUltima.VOLUMES) || 0;
+
+ if (volUltimo === 0) {
+ if (idxUltimoConferidoGeral > 0) {
+ const linhaAcima = dadosCompletos[idxUltimoConferidoGeral - 1];
+ const codAcima = String(linhaAcima.FORNEC_LAST).trim();
+ if (conjuntoFaltantes.has(codAcima)) {
+ proximoCodigoObrigatorioPDC = codAcima;
+ console.log(`[PDC Restauração] Reativada Trava Ascendente: ${proximoCodigoObrigatorioPDC}`);
+ }
+ }
+ } else if (idxUltimoConferidoGeral < dadosCompletos.length - 1) {
+ const linhaAbaixo = dadosCompletos[idxUltidoConferidoGeral + 1];
+ const volAbaixo = parseInt(linhaAbaixo.VOLUMES) || 0;
+ const codAbaixo = String(linhaAbaixo.FORNEC_LAST).trim();
+ 
+ if (volAbaixo === 0 && conjuntoFaltantes.has(codAbaixo)) {
+ proximoCodigoObrigatorioPDC = codAbaixo;
+ console.log(`[PDC Restauração] Reativada Trava Descendente: ${proximoCodigoObrigatorioPDC}`);
+ }
+ }
+ }
  }
  // =========================================================================
  
@@ -1440,41 +1449,40 @@ async function onScanSuccess(decodedText) {
  status.style.color = "#155724"; // Cor de texto nativa do alerta de sucesso
 
  // =========================================================================
- // 🩹 INTERVENÇÃO CIRÚRGICA: CÁLCULO E PERSISTÊNCIA DA PRÓXIMA TRAVA
+ // 🩹 INTERVENÇÃO CIRÚRGICA: CÁLCULO E PERSISTÊNCIA DA PRÓXIMA TRAVA (CORRIGIDO)
  // =========================================================================
  if (Array.isArray(dadosCompletos)) {
- // Filtra e isola as linhas exclusivas do romaneio atual
- const itensDoRomaneio = dadosCompletos.filter(row => String(row.ROMANEIO || row.NUMROM || row.Romaneio).trim() === romaneioVal.trim());
- 
- // Localiza o índice da linha correspondente ao código recém-bipado
- const idxAtual = itensDoRomaneio.findIndex(row => String(row.FORNEC_LAST).trim() === barcodeLimpo);
+ // Localiza o índice real da linha em toda a base carregada
+ const idxGeral = dadosCompletos.findIndex(row => String(row.FORNEC_LAST).trim() === barcodeLimpo);
 
- if (idxAtual !== -1) {
- const linhaAtual = itensDoRomaneio[idxAtual];
+ if (idxGeral !== -1) {
+ const linhaAtual = dadosCompletos[idxGeral];
  const volAtual = parseInt(linhaAtual.VOLUMES) || 0;
 
- // CENÁRIO 1 (Ascendente): Se bipa VOLUMES = 0, obriga a ler a linha acima e salva o backup
+ // CENÁRIO 1 (Ascendente - Linha com Vol 0 bipada): Obriga a ler a linha imediatamente acima
  if (volAtual === 0) {
- if (idxAtual > 0) {
- const linhaAcima = itensDoRomaneio[idxAtual - 1];
+ if (idxGeral > 0) {
+ const linhaAcima = dadosCompletos[idxGeral - 1];
  proximoCodigoObrigatorioPDC = String(linhaAcima.FORNEC_LAST).trim();
  localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
+ console.log(`[PDC] Trava Ativada (Cenário 0): Próximo deve ser o de cima: ${proximoCodigoObrigatorioPDC}`);
  }
  } 
- // CENÁRIO 2 (Descendente): Se bipa VOLUMES > 0, checa se a de baixo é 0 e salva o backup
- else if (idxAtual < itensDoRomaneio.length - 1) {
- const linhaAbaixo = itensDoRomaneio[idxAtual + 1];
+ // CENÁRIO 2 (Descendente - Linha com Vol > 0 bipada): Olha se a linha imediatamente abaixo na planilha é VOLUMES = 0
+ else if (idxGeral < dadosCompletos.length - 1) {
+ const linhaAbaixo = dadosCompletos[idxGeral + 1];
  const volAbaixo = parseInt(linhaAbaixo.VOLUMES) || 0;
  
  if (volAbaixo === 0) {
  proximoCodigoObrigatorioPDC = String(linhaAbaixo.FORNEC_LAST).trim();
  localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
+ console.log(`[PDC] Trava Ativada (Cenário Master): Próximo deve ser o de baixo: ${proximoCodigoObrigatorioPDC}`);
  }
  }
  }
  }
  // =========================================================================
- 
+
  } else {
  if (typeof tocarBeep === 'function') tocarBeep('erro');
  
